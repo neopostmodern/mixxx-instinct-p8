@@ -17,7 +17,7 @@ Hold + knob: move loop 1 bar
 Short: eject track, enable headphone for channel, disable headphone for other channel, reset all filters + effects + pregain
 
 ### Inner bottom: Utilities
-Short: set beat grid
+Hold + press other utility button: set beat grid
 Hold + knob: adjust pre-gain
 
 ### Sync

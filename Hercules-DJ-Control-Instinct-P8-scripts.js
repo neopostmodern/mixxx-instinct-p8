@@ -17,6 +17,10 @@ function log() {
     print(debugText);
 }
 
+function oppositeGroup(group) {
+    return group === "[Channel1]" ? "[Channel2]" : "[Channel1]";
+}
+
 var DJControlInstinctP8 = {
     // There is only one scratch toggle button for both decks.
     scratchModeActive: false,
@@ -26,8 +30,7 @@ var DJControlInstinctP8 = {
 
     timers: {
         loopPressed: 0,
-        keylockPressed: 0,
-        utilityPressed: 0
+        keylockPressed: 0
     }
 };
 
@@ -105,7 +108,7 @@ DJControlInstinctP8.ejectAndSwitch = function (channel, control, value, status, 
     engine.setValue(group, "pregain", 1);
     engine.setValue("[QuickEffectRack1_" + group + "]", "super1", 0.5);
     engine.setValue('[EffectRack1_EffectUnit' + group.replace('[Channel', '').replace(']', '') + ']', "mix", 0);
-    engine.setValue(group === "[Channel1]" ? "[Channel2]" : "[Channel1]", "pfl", 0);
+    engine.setValue(oppositeGroup(group), "pfl", 0);
     for (var i = 1; i <= 3; i++) {
         engine.setValue('[EqualizerRack1_' + group + '_Effect1]', 'parameter' + i, 1);
     }
@@ -220,12 +223,12 @@ DJControlInstinctP8.utilityPad = function (channel, control, value, status, grou
 
     if (value === 0) {
         DJControlInstinctP8.utilityActive = false;
-        if (new Date().getTime() - DJControlInstinctP8.timers.utilityPressed < 500) {
-            engine.setValue(group, "beats_translate_curpos", 1);
-        }
     } else {
-        DJControlInstinctP8.timers.utilityPressed = new Date().getTime()
-        DJControlInstinctP8.utilityActive = true;
+        if (DJControlInstinctP8.utilityActive) {
+            engine.setValue(oppositeGroup(group), "beats_translate_curpos", 1);
+        } else {
+            DJControlInstinctP8.utilityActive = true;
+        }
     }
     midi.sendShortMsg(0x90, group === "[Channel1]" ? 0x1A : 0x49, DJControlInstinctP8.utilityActive ? 0x7E : 0x00);
 }
