@@ -19,6 +19,7 @@ Short: eject track, enable headphone for channel, disable headphone for other ch
 ### Inner bottom: Utilities
 Hold + press other utility button: set beat grid
 Hold + knob: adjust pre-gain
+Hold + jog wheel: jump 32 bars
 
 ### Sync
 Short: sync (BPM + position) to other deck *once* (if it is playing loud)

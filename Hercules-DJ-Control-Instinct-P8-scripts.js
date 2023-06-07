@@ -31,6 +31,9 @@ var DJControlInstinctP8 = {
     timers: {
         loopPressed: 0,
         keylockPressed: 0
+    },
+    counters: {
+        utilityJog: 0
     }
 };
 
@@ -78,6 +81,14 @@ DJControlInstinctP8.jogWheel = function (midino, control, value, status, group) 
     if (DJControlInstinctP8.scratchModeActive) {
         if (engine.getValue(group, "volume") < 0.5) { // play_latched
             engine.setValue(group, "playposition", Math.min(1, Math.max(0, engine.getValue(group, "playposition") + direction / 1000)));
+        }
+    } else if (DJControlInstinctP8.utilityActive) {
+        if (engine.getValue(group, "volume") < 0.5) {
+            DJControlInstinctP8.counters.utilityJog += 1;
+            if (DJControlInstinctP8.counters.utilityJog >= 20) {
+                engine.setValue(group, direction > 0 ? "beatjump_32_forward" : "beatjump_32_backward", 1);
+                DJControlInstinctP8.counters.utilityJog = 0;
+            }
         }
     } else {
         engine.setValue(group, "jog", 0.5 * direction);
@@ -228,6 +239,7 @@ DJControlInstinctP8.utilityPad = function (channel, control, value, status, grou
             engine.setValue(oppositeGroup(group), "beats_translate_curpos", 1);
         } else {
             DJControlInstinctP8.utilityActive = true;
+            DJControlInstinctP8.counters.utilityJog = 0;
         }
     }
     midi.sendShortMsg(0x90, group === "[Channel1]" ? 0x1A : 0x49, DJControlInstinctP8.utilityActive ? 0x7E : 0x00);
