@@ -33,7 +33,8 @@ var DJControlInstinctP8 = {
         keylockPressed: 0
     },
     counters: {
-        utilityJog: 0
+        utilityJog: 0,
+        utilityScratchJog: 0,
     }
 };
 
@@ -72,15 +73,22 @@ DJControlInstinctP8.scratchMode = function (channel, control, value, status, gro
     DJControlInstinctP8.scratchModeActive = !DJControlInstinctP8.scratchModeActive;
     midi.sendShortMsg(0x90, 0x2D, DJControlInstinctP8.scratchModeActive ? 0x7F : 0x00);
 };
+DJControlInstinctP8.shiftScratchMode = function (channel, control, value, status, group) {
+    // unused!
+    // jog wheel is "pitch", since shift is pressed
+    midi.sendShortMsg(0x90, 0x2E, value ? 0x7F : 0x00);
+};
 
 DJControlInstinctP8.jogWheel = function (midino, control, value, status, group) {
     var deck = (group === "[Channel1]") ? 1 : 2;
     var direction = (value === 1) ? 1 : -1;
 
+    const currentPlayPosition = engine.getValue(group, "playposition")
+
     log("jog", direction, DJControlInstinctP8.scratchModeActive)
     if (DJControlInstinctP8.scratchModeActive) {
         if (engine.getValue(group, "volume") < 0.5) { // play_latched
-            engine.setValue(group, "playposition", Math.min(1, Math.max(0, engine.getValue(group, "playposition") + direction / 1000)));
+            engine.setValue(group, "playposition", Math.min(1, Math.max(0, currentPlayPosition + direction / 1000)));
         }
     } else if (DJControlInstinctP8.utilityActive) {
         if (engine.getValue(group, "volume") < 0.5) {
@@ -91,14 +99,65 @@ DJControlInstinctP8.jogWheel = function (midino, control, value, status, group) 
             }
         }
     } else {
-        engine.setValue(group, "jog", 0.5 * direction);
+        engine.setValue(group, "jog", 0.25 * direction);
     }
 };
 
 // Pitch is adjusted by holding down shift and turning the jog wheel.
 DJControlInstinctP8.pitch = function (channel, control, value, status, group) {
-    var delta = (value === 127 ? -1 : 1) / 1000;
-    engine.setValue(group, "rate", engine.getValue(group, "rate") - delta); // 2023-04-30: switch to up = slow
+    const direction = value === 127 ? -1 : 1;
+    const currentPlayPosition = engine.getValue(group, "playposition")
+
+    if (DJControlInstinctP8.utilityActive) {    
+        if (engine.getValue(group, "volume") < 0.5) {
+            DJControlInstinctP8.counters.utilityScratchJog += 1;
+            if (DJControlInstinctP8.counters.utilityScratchJog >= 30) {
+                let lowerCue = null;
+                let cues = [];
+                for (let potentialCue = 1; potentialCue <= 8; potentialCue += 1) {
+                    if (engine.getValue(group, `hotcue_${potentialCue}_status`) > 0) {
+                        cues.push(potentialCue);
+
+                        const cuePosition = engine.getValue(group, `hotcue_${potentialCue}_position`) / engine.getValue(group, 'track_samples')
+                        if (cuePosition < currentPlayPosition) {
+                            lowerCue = potentialCue
+                        }
+                    }
+                }
+
+                if (cues.length > 0) {
+                    const lowerCueIndex = cues.indexOf(lowerCue);
+                    if (lowerCueIndex === -1 && direction < 0) {
+                        // nothing
+                    } else {
+                        let jumpToCueIndex = lowerCueIndex;
+                        log(jumpToCueIndex, cues[jumpToCueIndex])
+
+                        if (direction > 0) {
+                            if (jumpToCueIndex === -1) {
+                                jumpToCueIndex = 0;
+                            } else {
+                                jumpToCueIndex += 1;
+                            }
+                                      
+                            if (Math.abs(engine.getValue(group, `hotcue_${cues[jumpToCueIndex]}_position`) / engine.getValue(group, 'track_samples') - currentPlayPosition) < 0.0001) {
+                                jumpToCueIndex += 1
+                            }
+                        }
+
+                        log(jumpToCueIndex, cues[jumpToCueIndex])
+                        
+                        engine.setValue(group, `hotcue_${cues[jumpToCueIndex]}_goto`, 1)   
+                    }
+                }
+            
+                DJControlInstinctP8.counters.utilityScratchJog = 0;
+            }
+        }
+    } else {
+        var delta = direction / 1000;
+        engine.setValue(group, "rate", engine.getValue(group, "rate") - delta); // 2023-04-30: switch to up = slow
+    }
 };
 
 
@@ -184,6 +243,21 @@ engine.makeConnection('[Channel2]', 'loop_enabled', function (value, group, cont
     midi.sendShortMsg(0x90, 0x49, value ? 0x7D : 0x00);
 });
 
+// (LOOP) KNOB WITH SHIFT
+DJControlInstinctP8.multiKnobShift = (channel, control, value, status, group) => {
+    const direction = (value > 64 ? -1 : 1)
+    if (DJControlInstinctP8.utilityActive) {
+        const currentKey = engine.getValue(group, 'key')
+        const newKey = (((currentKey + direction) - 1) % 24) + 1 // between 1 [C] and 24 [Bm]
+        engine.setValue(group, 'key', newKey)
+    } else {
+        const filterName = `[QuickEffectRack1_${group}]`
+        const currentFilterValue = engine.getValue(filterName, 'super1')
+        const newFilterValue = Math.max(0, Math.min(1, currentFilterValue + direction * 0.0075))
+        engine.setValue(filterName, 'super1', newFilterValue)
+    }
+}
+
 // KEYLOCK
 DJControlInstinctP8.keylock = function (channel, control, value, status, group) {
     if (value === 0) {
@@ -240,6 +314,7 @@ DJControlInstinctP8.utilityPad = function (channel, control, value, status, grou
         } else {
             DJControlInstinctP8.utilityActive = true;
             DJControlInstinctP8.counters.utilityJog = 0;
+            DJControlInstinctP8.counters.utilityScratchJog = 0;
         }
     }
     midi.sendShortMsg(0x90, group === "[Channel1]" ? 0x1A : 0x49, DJControlInstinctP8.utilityActive ? 0x7E : 0x00);

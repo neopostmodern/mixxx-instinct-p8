@@ -132,6 +132,17 @@ Based on:
           <script-binding />
         </options>
       </control>
+      <!-- Shift+Scratch Button -->
+      <control>
+        <group>[Master]</group>
+        <key>DJControlInstinctP8.shiftScratchMode</key>
+        <description>Mode (Shift+Scratch)</description>
+        <status>0x90</status>
+        <midino>0x2E</midino>
+        <options>
+          <script-binding />
+        </options>
+      </control>
       <!-- Shift Deck B 0x90 0x2F -->
       <!-- Mode 0x90 0x30 -->
       <!-- Mode+Pad selects mode (Loop/FX/Sample/Cue) for the corresponding deck (hardwired, pad messages are suppressed) -->
@@ -454,13 +465,13 @@ Based on:
         <!-- <group>[EffectRack1_EffectUnit1]</group>
         <key>mix</key>
         <description>Loop Move (Shift+Loop Knob)</description> -->
-        <group>[QuickEffectRack1_[Channel1]]</group>
-        <key>super1</key>
+        <group>[Channel1]</group>
+        <key>DJControlInstinctP8.multiKnobShift</key>
         <description>Quick filter (Shift+Loop Knob)</description>
         <status>0xB0</status>
         <midino>0x35</midino>
         <options>
-          <diff />
+          <script-binding />
         </options>
       </control>
       <control>
@@ -573,13 +584,13 @@ Based on:
         <!-- <group>[EffectRack1_EffectUnit2]</group>
         <key>mix</key>
         <description>Loop Move (Shift+Loop Knob)</description> -->
-        <group>[QuickEffectRack1_[Channel2]]</group>
-        <key>super1</key>
+        <group>[Channel2]</group>
+        <key>DJControlInstinctP8.multiKnobShift</key>
         <description>Quick filter (Shift+Loop Knob)</description>
         <status>0xB0</status>
         <midino>0x37</midino>
         <options>
-          <diff />
+          <script-binding />
         </options>
       </control>
       <control>
@@ -1243,16 +1254,6 @@ Based on:
         <description>Sync Deck A (Shift+Sync)</description>
         <status>0x90</status>
         <midino>0x26</midino>
-        <minimum>0.5</minimum>
-      </output>
-      <!-- Scratch Button -->
-      <!-- 0x90 0x2D Scratch, signaled by script -->
-      <output>
-        <group>[AutoDJ]</group>
-        <key>enabled</key>
-        <description>AutoDJ (Shift+Scratch)</description>
-        <status>0x90</status>
-        <midino>0x2E</midino>
         <minimum>0.5</minimum>
       </output>
       <!-- Deck B Play/Cue/Sync -->
