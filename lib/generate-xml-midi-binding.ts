@@ -1,8 +1,10 @@
 import * as fs from "fs/promises";
 import * as xml2js from "xml2js";
 
-const SCRIPT_FILENAME = __dirname + "/../Behringer-CMD-DV1.js";
-const XML_FILENAME = __dirname + "/../Behringer-CMD-DV1.midi.xml";
+const SCRIPT_LIB_FILENAMES = [
+  __dirname + "/../util.js",
+  __dirname + "/../deckControl.js",
+];
 
 const STATUS_BUTTON_DOWN = 0x96;
 const STATUS_BUTTON_UP = 0x86;
@@ -16,6 +18,9 @@ const getStatusesFromName = (name: string): Array<number> => {
   if (name.includes("_button_down")) {
     return [STATUS_BUTTON_DOWN];
   }
+  if (name.includes("_button_both")) {
+    return [STATUS_BUTTON_DOWN, STATUS_BUTTON_UP];
+  }
   if (name.includes("_encoder")) {
     return [STATUS_ENCODER_CHANGE];
   }
@@ -25,7 +30,8 @@ const getStatusesFromName = (name: string): Array<number> => {
 const formatHex = (value: number): string =>
   `0x${value.toString(16).toUpperCase()}`;
 
-const getScript = async () => (await fs.readFile(SCRIPT_FILENAME)).toString();
+const getScript = async (filePath: string): Promise<string> =>
+  (await fs.readFile(filePath)).toString();
 
 interface MidiBinding {
   midiControl: number;
@@ -87,15 +93,23 @@ const getScriptBindingsFromScriptLines = (
   }
   return midiBindings;
 };
-const getMidiBindingsFromScript = (script: string): Array<MidiBinding> => {
+const getMidiBindingsFromScript = async (
+  script: string
+): Promise<Array<MidiBinding>> => {
+  const scriptLibs = await Promise.all(
+    SCRIPT_LIB_FILENAMES.map((scriptLibFilename) =>
+      getScript(scriptLibFilename)
+    )
+  );
+
   let midiMappings;
   try {
     midiMappings = eval(`
 const script = {};
-const npmUtil = {};
 const engine = { makeConnection: () => ({ trigger: () => {} }) }; 
+${scriptLibs.join("\n")}
 ${script} 
-MIDI_MAPPINGS()
+typeof MIDI_MAPPINGS !== 'undefined' && MIDI_MAPPINGS()
 `);
   } catch (e) {
     console.error("Mapping eval failed!");
@@ -118,24 +132,28 @@ MIDI_MAPPINGS()
   }));
 };
 
-const generateMappingXml = async () => {
-  const script = await getScript();
+const generateMappingXml = async (controllerScriptName: string) => {
+  const xmlFilename = `${__dirname}/../${controllerScriptName}.midi.xml`;
+
+  const script = await getScript(`${__dirname}/../${controllerScriptName}.js`);
   const scriptLines = script.split("\n");
-  const midiBindings = getMidiBindingsFromScript(script);
+  const midiBindings = await getMidiBindingsFromScript(script);
   //   console.log(scriptLines);
   const scriptBindings = getScriptBindingsFromScriptLines(scriptLines);
 
   const mapping = await xml2js.parseStringPromise(
-    await fs.readFile(XML_FILENAME)
+    await fs.readFile(xmlFilename)
   );
   const manuallyMappedControls =
     mapping.MixxxControllerPreset.controller[0].controls[0].control.filter(
       ({ description }) => description[0] !== DESCRIPTION_AUTO_GENERATED
     );
-  const manuallyMappedOutputs =
-    mapping.MixxxControllerPreset.controller[0].outputs[0].output.filter(
-      ({ description }) => description[0] !== DESCRIPTION_AUTO_GENERATED
-    );
+  const manuallyMappedOutputs = mapping.MixxxControllerPreset.controller[0]
+    .outputs[0]
+    ? mapping.MixxxControllerPreset.controller[0].outputs[0].output.filter(
+        ({ description }) => description[0] !== DESCRIPTION_AUTO_GENERATED
+      )
+    : [];
   // console.log(manuallyMappedControls);
   const newMapping = {
     ...mapping,
@@ -183,9 +201,17 @@ const generateMappingXml = async () => {
   };
   const newXml = new xml2js.Builder().buildObject(newMapping);
   // console.log(newXml);
-  await fs.writeFile(XML_FILENAME, newXml);
+  await fs.writeFile(xmlFilename, newXml);
 };
 
-generateMappingXml().catch((error) => {
+const firstArg = process.argv[process.argv.length - 1];
+if (firstArg === __filename) {
+  console.error(
+    "Pass file base name (without .midi.xml / .js and without a path) as only argument"
+  );
+  process.exit(1);
+}
+console.log(`Processing '${firstArg}'...`);
+generateMappingXml(firstArg).catch((error) => {
   console.error("Failed to generate mapping XML", error);
 });
