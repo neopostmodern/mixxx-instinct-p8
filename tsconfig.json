@@ -1,6 +1,17 @@
 {
     "compilerOptions": {
         "noImplicitAny": false,
-        "lib": ["ES6"]
-    }
+        "lib": ["ES6"],
+        "allowJs": true,
+        "checkJs": true,
+        "noEmit": true
+    },
+    "include": [
+        "*.js", 
+        "lib/*.ts", 
+        "globals.d.ts",
+        "/usr/share/mixxx/controllers/engine-api.d.ts", 
+        "/usr/share/mixxx/controllers/midi-controller-api.d.ts", 
+        "/usr/share/mixxx/controllers/hid-controller-api.d.ts"
+    ]
 }
