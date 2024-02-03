@@ -2,14 +2,6 @@
 
 const log = (...args) => console.log("[NPM/Behringer]", ...args);
 
-const range = (start, step, count) => {
-  const values = [];
-  for (let index = 0; index < count; index++) {
-    values.push(start + step * index);
-  }
-  return values;
-};
-
 const CHANNEL = 7 - 1;
 
 const COLOR_BUTTON_ORANGE = 0x00;
@@ -27,33 +19,18 @@ const ENCODER_LED_COUNT = 15;
 const CONTROLS_DECK_OFFSET = 0x40;
 
 const CONTROLS_FX_OFFSET = 0x14;
-const CONTROLS_EFFECT_ON_1 = range(0x14, 4, 4);
-const CONTROLS_LAST_EFFECT_KNOB_1 = range(0x17, 4, 4);
-const CONTROLS_LAST_EFFECT_KNOB_2 = range(0x27, 4, 4);
+const CONTROLS_EFFECT_ON_1 = npmUtil.range(0x14, 4, 4);
+const CONTROLS_LAST_EFFECT_KNOB_1 = npmUtil.range(0x17, 4, 4);
+const CONTROLS_LAST_EFFECT_KNOB_2 = npmUtil.range(0x27, 4, 4);
+
+const CONTROLS_FUNCTIONS_OFFSET = 0x54;
 
 const CONTROLS_HOTCUE_OFFSET = 0x58;
 
-const DECK_DISABLED = 0;
-const DECK_ACTIVE = 1;
-const DECK_ACTIVE_FOCUS = 2;
-const DECK_ADDITIONAL = 3;
-let decks = [
-  null,
-  DECK_ACTIVE_FOCUS,
-  DECK_ACTIVE,
-  DECK_DISABLED,
-  DECK_DISABLED,
-];
-const getActiveDeckIndex = () => decks.indexOf(DECK_ACTIVE_FOCUS);
-const getChannel = (deck = getActiveDeckIndex()) => `[Channel${deck}]`;
-
 const midiMappings = {};
 
-const analyzeDeckControl = (control) => {
-  return {
-    number: control - CONTROLS_DECK_OFFSET + 1, // 1 indexed
-  };
-};
+const analyzeDeckControl = deckControl.fx_analyzeDeckControl(CONTROLS_DECK_OFFSET);
+const deckNumberToControl = deckControl.fx_deckNumberToControl(CONTROLS_DECK_OFFSET);
 
 const analyzeFxControl = (control) => {
   let relativeControl = control - CONTROLS_FX_OFFSET;
@@ -81,77 +58,348 @@ const analyzeHotcueControl = (control) => {
 const setButtonColor = (control, color) => {
   midi.sendShortMsg(CHANNEL | BUTTON_LED_COMMAND, control, color);
 };
+const setEncoderLEDs = (control, normalizedValue) => {
+  midi.sendShortMsg(
+    CHANNEL | ENCODER_LED_COMMAND,
+    control,
+    normalizedValue * (ENCODER_LED_COUNT - 1) + 1
+  );
+};
 
+//#region DECK CONTROL
 const deckStatusToColor = (deckStatus) => {
   if (deckStatus > 2) {
     return 0;
   }
   return deckStatus;
 };
-const changeDeck = (newFocus) => {
-  const newDecks = [...decks];
+const changeDeckFocus = (newFocus) => {
+  deckControl.setActiveFocusedDeckIndex(newFocus);
 
-  newDecks[getActiveDeckIndex()] = DECK_ACTIVE;
-  newDecks[newFocus] = DECK_ACTIVE_FOCUS;
+  engine.setValue("[Master]", "duckStrength", deckControl.encodeDuckFromDecks());
+};
 
-  engine.setValue(
-    "[Master]",
-    "duckStrength",
-    npmUtil.encodeDuckFromDecks(newDecks)
+const copyDeck = (fromDeck, toDeck) => {
+  engine.setValue(deckControl.getChannel(toDeck), "CloneFromDeck", fromDeck);
+  const valuesToCopy = [
+    (deck) => [deckControl.getChannel(deck), "sync_enabled"],
+    (deck) => [deckControl.getChannel(deck), "pregain"],
+    (deck) => [
+      `[EqualizerRack1_${deckControl.getChannel(deck)}_Effect1]`,
+      "parameter3",
+    ],
+    (deck) => [
+      `[EqualizerRack1_${deckControl.getChannel(deck)}_Effect1]`,
+      "parameter2",
+    ],
+    (deck) => [
+      `[EqualizerRack1_${deckControl.getChannel(deck)}_Effect1]`,
+      "parameter1",
+    ],
+    (deck) => [`[QuickEffectRack1_${deckControl.getChannel(deck)}]`, "super1"],
+    // todo: effect rack "send" assignments
+    // todo: pitch adjust (locked, adjusted to)
+  ];
+  valuesToCopy.forEach((valuePair) => {
+    const [fromGroup, fromKey] = valuePair(fromDeck);
+    const [toGroup, toKey] = valuePair(toDeck);
+    engine.setValue(toGroup, toKey, engine.getValue(fromGroup, fromKey));
+  });
+};
+const moveDeck = (fromDeck, toDeck) => {
+  engine.setValue(deckControl.getChannel(toDeck), "volume", 0);
+  copyDeck(fromDeck, toDeck);
+  npmUtil.setTimeout(() => {
+    engine.setValue(
+      deckControl.getChannel(toDeck),
+      "volume",
+      engine.getValue(deckControl.getChannel(fromDeck), "volume")
+    );
+    engine.setValue(deckControl.getChannel(fromDeck), "volume", 0);
+    engine.setValue(deckControl.getChannel(fromDeck), "play", 0);
+    deckControl.ejectDeck(fromDeck);
+  }, 2000);
+};
+const swapDecks = (fromDeck, toDeck) => {
+  if (engine.getValue(deckControl.getChannel(toDeck), "track_loaded")) {
+    const freeDeck = npmUtil.range(1, 1, engine.getValue("[App]", "num_decks")).find(
+      (deckNumber) =>
+        !engine.getValue(deckControl.getChannel(deckNumber), "track_loaded")
+    );
+    if (!freeDeck) {
+      log("Warning! No free deck for swapping available");
+      return;
+    }
+
+    moveDeck(toDeck, freeDeck);
+    npmUtil.setTimeout(() => moveDeck(fromDeck, toDeck), 3000);
+    npmUtil.setTimeout(() => moveDeck(freeDeck, fromDeck), 6000);
+  } else {
+    moveDeck(fromDeck, toDeck);
+  }
+};
+//#endregion
+
+//#region CONNECTIONS
+const connectHotcueLEDs = (color = COLOR_BUTTON_BLUE) => {
+  Behringer.connections.hotcues = npmUtil.range(CONTROLS_HOTCUE_OFFSET, 1, 8).map(
+    (hotcueControl) => {
+      const { number } = analyzeHotcueControl(hotcueControl);
+      const connection = engine.makeConnection(
+        deckControl.getChannel(),
+        `hotcue_${number}_status`,
+        (value) => {
+          setButtonColor(hotcueControl, value ? color : COLOR_BUTTON_ORANGE);
+        }
+      );
+      connection.trigger();
+      return connection;
+    }
+  );
+};
+const disconnectHotcueLEDs = () => {
+  Behringer.connections.hotcues.forEach((connection) =>
+    connection.disconnect()
+  );
+};
+const disconnectAllDeckSpecificConnections = () => {
+  disconnectHotcueLEDs();
+};
+
+const connectDeckFocusedLED = () => {
+  const connection = engine.makeConnection(
+    "[App]",
+    "indicator_500ms",
+    npmUtil.engineBlink(2, 2, (on) => {
+      setButtonColor(
+        deckNumberToControl(deckControl.getActiveFocusedDeckIndex()),
+        on ? COLOR_BUTTON_ORANGE : COLOR_BUTTON_BLUE
+      );
+    })
+  );
+  connection.trigger();
+  Behringer.connections.deckFocusedLED = connection;
+};
+const disconnectDeckFocusedLED = () => {
+  if (Behringer.connections.deckFocusedLED) {
+    Behringer.connections.deckFocusedLED.disconnect();
+  }
+};
+const setDeckLEDs = () => {
+  disconnectDeckFocusedLED();
+  npmUtil.range(CONTROLS_DECK_OFFSET, 1, 4).map((deckControl_) => {
+    const { number: deckNumber } = analyzeDeckControl(deckControl_);
+    setButtonColor(deckControl_, deckStatusToColor(deckControl.decks[deckNumber]));
+  });
+  connectDeckFocusedLED();
+};
+
+const connectDeckVolume = () => {
+  Behringer.connections.deckVolume = npmUtil.range(CONTROLS_DECK_OFFSET, 1, 4).map(
+    (deckControl_) => {
+      const { number } = analyzeDeckControl(deckControl_);
+      const connection = engine.makeConnection(
+        deckControl.getChannel(number),
+        "volume",
+        (value) => {
+          setEncoderLEDs(deckControl, value);
+        }
+      );
+      connection.trigger();
+      return connection;
+    }
+  );
+};
+const disconnectDeckVolume = () => {
+  Behringer.connections.deckVolume.forEach((connection) =>
+    connection.disconnect()
   );
 };
 
+const connectEffectButtonsAndEncoders = () => {
+  npmUtil.range(CONTROLS_FX_OFFSET, 1, 32).forEach((control) => {
+    const { unit, fxNumber, position } = analyzeFxControl(control);
+    if (position === 0) {
+      // todo
+      midiMappings[control] = {
+        description: "",
+        group: `[EffectRack1_EffectUnit${unit}_Effect${fxNumber}]`,
+        key: "enabled",
+        type: "BUTTON",
+      };
+      engine
+        .makeConnection(
+          `[EffectRack1_EffectUnit${unit}_Effect${fxNumber}]`,
+          "meta",
+          function (value) {
+            setEncoderLEDs(control, value);
+          }
+        )
+        .trigger();
+    } else if (position === 3) {
+      engine
+        .makeConnection(
+          `[EffectRack1_EffectUnit${unit}]`,
+          "mix",
+          function (value) {
+            midi.sendShortMsg(
+              CHANNEL | ENCODER_LED_COMMAND,
+              control,
+              value * ENCODER_LED_COUNT
+            );
+          }
+        )
+        .trigger();
+    } else {
+      engine
+        .makeConnection(
+          `[EffectRack1_EffectUnit${unit}_Effect${fxNumber}]`,
+          `parameter${position}`,
+          function () {
+            midi.sendShortMsg(
+              CHANNEL | ENCODER_LED_COMMAND,
+              control,
+              engine.getParameter(
+                `[EffectRack1_EffectUnit${unit}_Effect${fxNumber}]`,
+                `parameter${position}`
+              ) * ENCODER_LED_COUNT
+            );
+          }
+        )
+        .trigger();
+    }
+  });
+};
+//#endregion
+
 var Behringer = {
+  mode: {
+    erase: false,
+    store: false,
+    holdDeck: null,
+  },
+  connections: {
+    hotcues: [],
+    deckVolume: [],
+    deckFocusedLED: null,
+    deckVolumeAsEffect: [],
+  },
   init() {
     log("init");
-    changeDeck(1);
+
+    changeDeckFocus(1); // triggers connectHotcueLEDs
+    connectDeckVolume();
+    connectEffectButtonsAndEncoders();
   },
   shutdown() {
     log("shutdown");
   },
 };
 
-/* midi 0x40-0x43 */
-Behringer.deck_button_down = (channel, control) => {
-  const { number } = analyzeDeckControl(control);
-  changeDeck(number);
+deckControl.events.onDeckChange(() => {
+  setDeckLEDs();
 
-  // midi.sendShortMsg(channel | BUTTON_LED_COMMAND, control, 0x01);
+  disconnectAllDeckSpecificConnections();
+  connectHotcueLEDs();
+})
+
+const getAssignmentForDeckEncoderAsEffect = (deckNumber, physicalNumber) => {
+  if (physicalNumber <= 3) {
+    return [
+      `[EqualizerRack1_${deckControl.getChannel(deckNumber)}_Effect1]`,
+      `parameter${physicalNumber}`,
+    ];
+  }
+  return [`[QuickEffectRack1_${deckControl.getChannel(deckNumber)}]`, "super1"];
 };
 
-let deckSpecificConnections;
-engine.makeConnection("[Master]", "duckStrength", (value) => {
-  log("duck", value, npmUtil.decodeDecksFromDuck )
-  decks = npmUtil.decodeDecksFromDuck(value);
-  log("decks", decks);
+/* midi 0x40-0x43 */
+Behringer.deck_button_both = npmUtil.shortAndLong({
+  id: "deck",
+  push: (channel, control) => {
+    const { number } = analyzeDeckControl(control);
+    if (Behringer.mode.holdDeck) {
+      swapDecks(Behringer.mode.holdDeck, number);
+    } else {
+      changeDeckFocus(number);
+    }
+  },
+  hold: {
+    start: (channel, control) => {
+      if (Behringer.mode.holdDeck) {
+        return;
+      }
+      const { number } = analyzeDeckControl(control);
+      Behringer.mode.holdDeck = number;
+      disconnectDeckFocusedLED();
+      npmUtil.range(CONTROLS_DECK_OFFSET, 1, 4).forEach((deckControl) => {
+        setButtonColor(
+          deckControl,
+          deckControl == control ? COLOR_BUTTON_BLUE_BLINK : COLOR_BUTTON_ORANGE
+        );
+      });
+      disconnectDeckVolume();
+      Behringer.connections.deckVolumeAsEffect = npmUtil.range(
+        CONTROLS_DECK_OFFSET,
+        1,
+        4
+      ).map((deckControl) => {
+        const { physicalNumber } = analyzeDeckControl(deckControl);
+        const [group, key] = getAssignmentForDeckEncoderAsEffect(
+          number,
+          physicalNumber
+        );
+        const connection = engine.makeConnection(group, key, (value) => {
+          setEncoderLEDs(deckControl, value / (physicalNumber <= 3 ? 2 : 1));
+        });
+        connection.trigger();
+        return connection;
+      });
 
-  range(CONTROLS_DECK_OFFSET, 1, 4).forEach((deckControl) => {
-    const { number: deckNumber } = analyzeDeckControl(deckControl);
-    setButtonColor(deckControl, deckStatusToColor(decks[deckNumber]));
-  });
-
-  if (deckSpecificConnections) {
-    deckSpecificConnections.forEach((connection) => connection.disconnect());
-  }
-
-  deckSpecificConnections = [];
-
-  deckSpecificConnections = deckSpecificConnections.concat(
-    range(CONTROLS_HOTCUE_OFFSET, 1, 8).map((hotcueControl) => {
-      const { number } = analyzeHotcueControl(hotcueControl);
-      const connection = engine.makeConnection(
-        getChannel(),
-        `hotcue_${number}_status`,
-        (value) => {
-          log("connection hotcue", hotcueControl, number, value);
-          setButtonColor(hotcueControl, value);
-        }
+      npmUtil.range(CONTROLS_FUNCTIONS_OFFSET, 1, 2).forEach((control) => {
+        setButtonColor(control, COLOR_BUTTON_BLUE);
+      });
+    },
+    end: (channel, control) => {
+      const { number } = analyzeDeckControl(control);
+      if (Behringer.mode.holdDeck !== number) {
+        return;
+      }
+      Behringer.mode.holdDeck = null;
+      setDeckLEDs();
+      Behringer.connections.deckVolumeAsEffect.forEach((connection) =>
+        connection.disconnect()
       );
-      connection.trigger();
-      return connection;
-    })
-  );
+      connectDeckVolume();
+
+      npmUtil.range(CONTROLS_FUNCTIONS_OFFSET, 1, 2).forEach((control) => {
+        setButtonColor(control, COLOR_BUTTON_ORANGE);
+      });
+    },
+  },
 });
+
+/* midi 0x40-0x43 */
+Behringer.deck_encoder = (channel, control, value) => {
+  const { physicalNumber, number } = analyzeDeckControl(control);
+  if (Behringer.mode.holdDeck) {
+    const [group, key] = getAssignmentForDeckEncoderAsEffect(
+      Behringer.mode.holdDeck,
+      physicalNumber
+    );
+    npmUtil.updateValue(
+      group,
+      key,
+      (value - ENCODER_VALUE_OFFSET) * (physicalNumber === 4 ? 0.01 : 0.05)
+    );
+  } else {
+    npmUtil.updateValue(
+      deckControl.getChannel(number),
+      "volume",
+      (value - ENCODER_VALUE_OFFSET) * 0.02
+    );
+  }
+};
 
 // 2 rows * 4 fx * 4 encoders
 /* midi 0x14-0x33 */
@@ -186,73 +434,98 @@ Behringer.fx_encoder = (channel, control, value) => {
 // };
 
 // if (typeof engine !== "undefined") {
-range(CONTROLS_FX_OFFSET, 1, 32).forEach((control) => {
-  const { unit, fxNumber, position } = analyzeFxControl(control);
-  if (position === 0) {
-    midiMappings[control] = {
-      description: "",
-      group: `[EffectRack1_EffectUnit${unit}_Effect${fxNumber}]`,
-      key: "enabled",
-      type: "BUTTON",
-    };
-    engine.makeConnection(
-      `[EffectRack1_EffectUnit${unit}_Effect${fxNumber}]`,
-      "meta",
-      function (value) {
-        midi.sendShortMsg(CHANNEL | ENCODER_LED_COMMAND, control, value * 15);
-      }
-    ).trigger();
-  } else if (position === 3) {
-    engine.makeConnection(
-      `[EffectRack1_EffectUnit${unit}]`,
-      "mix",
-      function (value) {
-        midi.sendShortMsg(
-          CHANNEL | ENCODER_LED_COMMAND,
-          control,
-          value * ENCODER_LED_COUNT
-        );
-      }
-    ).trigger();
-  } else {
-    engine.makeConnection(
-      `[EffectRack1_EffectUnit${unit}_Effect${fxNumber}]`,
-      `parameter${position}`,
-      function () {
-        midi.sendShortMsg(
-          CHANNEL | ENCODER_LED_COMMAND,
-          control,
-          engine.getParameter(
-            `[EffectRack1_EffectUnit${unit}_Effect${fxNumber}]`,
-            `parameter${position}`
-          ) * ENCODER_LED_COUNT
-        );
-      }
-    ).trigger();
-  }
-});
 
-/* midi 0x58-0x5F */
-Behringer.hotcue_button_down = (channel, control) => {
-  const { number } = analyzeHotcueControl(control);
-  log("hotcue!", number);
-  const hotcueStatus = engine.getValue(getChannel(), `hotcue_${number}_status`);
-  if (hotcueStatus === 0) {
-    engine.setValue(getChannel(), `hotcue_${number}_set`, 1);
-  } else {
-    engine.setValue(getChannel(), `hotcue_${number}_goto`, 1);
+/* midi 0x54 */
+Behringer.slice_button_down = () => {
+  log("slice")
+  if (Behringer.mode.holdDeck) {
+    script.toggleControl(deckControl.getChannel(Behringer.mode.holdDeck), "play");
+    return;
   }
 };
-// CONTROLS_LAST_EFFECT_KNOB_2.forEach((control) => {
-//   engine.makeConnection("[EffectRack1_EffectUnit2]", "mix", function (value) {
-//     midi.sendShortMsg(CHANNEL | ENCODER_LED_COMMAND, control, value * 15);
-//   });
-// });
-// }
+
+/* midi 0x55 */
+Behringer.erase_button_both = (channel, control, value) => {
+  if (Behringer.mode.holdDeck) {
+    if (value) {
+      deckControl.ejectDeck(Behringer.mode.holdDeck);
+    }
+    return;
+  }
+  Behringer.mode.erase = Boolean(value);
+  setButtonColor(
+    control,
+    Behringer.mode.erase ? COLOR_BUTTON_BLUE : COLOR_BUTTON_ORANGE
+  );
+  disconnectHotcueLEDs();
+  connectHotcueLEDs(Behringer.mode.erase ? COLOR_BUTTON_BLUE_BLINK : undefined);
+};
+/* midi 0x56 */
+Behringer.store_button_both = (channel, control, value) => {
+  Behringer.mode.store = Boolean(value);
+  setButtonColor(
+    control,
+    Behringer.mode.store ? COLOR_BUTTON_BLUE : COLOR_BUTTON_ORANGE
+  );
+  if (Behringer.mode.store) {
+    disconnectHotcueLEDs();
+    npmUtil.range(CONTROLS_HOTCUE_OFFSET, 1, 8).forEach((control) => {
+      const { number } = analyzeHotcueControl(control);
+      let color = COLOR_BUTTON_ORANGE;
+      if (number === 8) {
+        color = COLOR_BUTTON_BLUE_BLINK;
+      } else if (number <= 5) {
+        color = COLOR_BUTTON_BLUE;
+      }
+      setButtonColor(control, color);
+    });
+  } else {
+    connectHotcueLEDs();
+  }
+};
 
 /* midi 0x57 */
 Behringer.library_button_down = () => {
   script.toggleControl("[Skin]", "show_maximized_library"); //, 1, { toggle: true });
+};
+
+/* midi 0x58-0x5F */
+Behringer.hotcue_button_down = (channel, control) => {
+  const { number } = analyzeHotcueControl(control);
+  if (Behringer.mode.store) {
+    if (number == 6 || number == 7) {
+      log("Invalid rating: ", number);
+      return;
+    }
+    // hack to reset rating
+    for (let index = 0; index < 5; index++) {
+      engine.setValue(deckControl.getChannel(), "stars_down", 1);
+    }
+
+    if (number == 8) {
+      // reset rating to 0
+      return;
+    }
+
+    // hack to set rating
+    for (let index = 0; index < number; index++) {
+      engine.setValue(deckControl.getChannel(), "stars_up", 1);
+    }
+  } else {
+    const hotcueStatus = engine.getValue(
+      deckControl.getChannel(),
+      `hotcue_${number}_status`
+    );
+    if (hotcueStatus === 0) {
+      engine.setValue(deckControl.getChannel(), `hotcue_${number}_set`, 1);
+    } else {
+      if (Behringer.mode.erase) {
+        engine.setValue(deckControl.getChannel(), `hotcue_${number}_clear`, 1);
+      } else {
+        engine.setValue(deckControl.getChannel(), `hotcue_${number}_goto`, 1);
+      }
+    }
+  }
 };
 
 const MIDI_MAPPINGS = () => {

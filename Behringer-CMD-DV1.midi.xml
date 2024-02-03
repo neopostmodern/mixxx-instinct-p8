@@ -3,18 +3,29 @@
   <info>
     <name>Behringer CMD DV-1 (NPM 2023)</name>
     <author>neo post modern</author>
-    <description>Generated on 2024-01-02T16:24:57.279Z</description>
+    <description>Generated on 2024-01-03T12:34:15.021Z</description>
   </info>
   <controller id="Behringer-CMD-DV1">
     <scriptfiles>
-      <file functionprefix="" filename="util.js"/>
+      <file functionprefix="" filename="npmUtil.js"/>
+      <file functionprefix="" filename="deckControl.js"/>
       <file functionprefix="Behringer" filename="Behringer-CMD-DV1.js"/>
     </scriptfiles>
     <controls>
       <control>
         <midino>0x40</midino>
         <status>0x96</status>
-        <key>Behringer.deck_button_down</key>
+        <key>Behringer.deck_button_both</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x40</midino>
+        <status>0x86</status>
+        <key>Behringer.deck_button_both</key>
         <group/>
         <description>[auto-generated]</description>
         <options>
@@ -24,7 +35,17 @@
       <control>
         <midino>0x41</midino>
         <status>0x96</status>
-        <key>Behringer.deck_button_down</key>
+        <key>Behringer.deck_button_both</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x41</midino>
+        <status>0x86</status>
+        <key>Behringer.deck_button_both</key>
         <group/>
         <description>[auto-generated]</description>
         <options>
@@ -34,7 +55,17 @@
       <control>
         <midino>0x42</midino>
         <status>0x96</status>
-        <key>Behringer.deck_button_down</key>
+        <key>Behringer.deck_button_both</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x42</midino>
+        <status>0x86</status>
+        <key>Behringer.deck_button_both</key>
         <group/>
         <description>[auto-generated]</description>
         <options>
@@ -44,7 +75,57 @@
       <control>
         <midino>0x43</midino>
         <status>0x96</status>
-        <key>Behringer.deck_button_down</key>
+        <key>Behringer.deck_button_both</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x43</midino>
+        <status>0x86</status>
+        <key>Behringer.deck_button_both</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x40</midino>
+        <status>0xB6</status>
+        <key>Behringer.deck_encoder</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x41</midino>
+        <status>0xB6</status>
+        <key>Behringer.deck_encoder</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x42</midino>
+        <status>0xB6</status>
+        <key>Behringer.deck_encoder</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x43</midino>
+        <status>0xB6</status>
+        <key>Behringer.deck_encoder</key>
         <group/>
         <description>[auto-generated]</description>
         <options>
@@ -372,6 +453,66 @@
         </options>
       </control>
       <control>
+        <midino>0x54</midino>
+        <status>0x96</status>
+        <key>Behringer.slice_button_down</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x55</midino>
+        <status>0x96</status>
+        <key>Behringer.erase_button_both</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x55</midino>
+        <status>0x86</status>
+        <key>Behringer.erase_button_both</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x56</midino>
+        <status>0x96</status>
+        <key>Behringer.store_button_both</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x56</midino>
+        <status>0x86</status>
+        <key>Behringer.store_button_both</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
+        <midino>0x57</midino>
+        <status>0x96</status>
+        <key>Behringer.library_button_down</key>
+        <group/>
+        <description>[auto-generated]</description>
+        <options>
+          <script-binding/>
+        </options>
+      </control>
+      <control>
         <midino>0x58</midino>
         <status>0x96</status>
         <key>Behringer.hotcue_button_down</key>
@@ -451,154 +592,7 @@
           <script-binding/>
         </options>
       </control>
-      <control>
-        <midino>0x57</midino>
-        <status>0x96</status>
-        <key>Behringer.library_button_down</key>
-        <group/>
-        <description>[auto-generated]</description>
-        <options>
-          <script-binding/>
-        </options>
-      </control>
-      <control>
-        <midino>0x14</midino>
-        <status>0x96</status>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit1_Effect1]</group>
-        <description>[auto-generated]</description>
-        <options/>
-      </control>
-      <control>
-        <midino>0x18</midino>
-        <status>0x96</status>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit1_Effect2]</group>
-        <description>[auto-generated]</description>
-        <options/>
-      </control>
-      <control>
-        <midino>0x1C</midino>
-        <status>0x96</status>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit1_Effect3]</group>
-        <description>[auto-generated]</description>
-        <options/>
-      </control>
-      <control>
-        <midino>0x20</midino>
-        <status>0x96</status>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit1_Effect4]</group>
-        <description>[auto-generated]</description>
-        <options/>
-      </control>
-      <control>
-        <midino>0x24</midino>
-        <status>0x96</status>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit2_Effect1]</group>
-        <description>[auto-generated]</description>
-        <options/>
-      </control>
-      <control>
-        <midino>0x28</midino>
-        <status>0x96</status>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit2_Effect2]</group>
-        <description>[auto-generated]</description>
-        <options/>
-      </control>
-      <control>
-        <midino>0x2C</midino>
-        <status>0x96</status>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit2_Effect3]</group>
-        <description>[auto-generated]</description>
-        <options/>
-      </control>
-      <control>
-        <midino>0x30</midino>
-        <status>0x96</status>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit2_Effect4]</group>
-        <description>[auto-generated]</description>
-        <options/>
-      </control>
     </controls>
-    <outputs>
-      <output>
-        <midino>0x14</midino>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit1_Effect1]</group>
-        <description>[auto-generated]</description>
-        <on>0x1</on>
-        <minimum>0.5</minimum>
-        <status>0x96</status>
-      </output>
-      <output>
-        <midino>0x18</midino>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit1_Effect2]</group>
-        <description>[auto-generated]</description>
-        <on>0x1</on>
-        <minimum>0.5</minimum>
-        <status>0x96</status>
-      </output>
-      <output>
-        <midino>0x1C</midino>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit1_Effect3]</group>
-        <description>[auto-generated]</description>
-        <on>0x1</on>
-        <minimum>0.5</minimum>
-        <status>0x96</status>
-      </output>
-      <output>
-        <midino>0x20</midino>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit1_Effect4]</group>
-        <description>[auto-generated]</description>
-        <on>0x1</on>
-        <minimum>0.5</minimum>
-        <status>0x96</status>
-      </output>
-      <output>
-        <midino>0x24</midino>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit2_Effect1]</group>
-        <description>[auto-generated]</description>
-        <on>0x1</on>
-        <minimum>0.5</minimum>
-        <status>0x96</status>
-      </output>
-      <output>
-        <midino>0x28</midino>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit2_Effect2]</group>
-        <description>[auto-generated]</description>
-        <on>0x1</on>
-        <minimum>0.5</minimum>
-        <status>0x96</status>
-      </output>
-      <output>
-        <midino>0x2C</midino>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit2_Effect3]</group>
-        <description>[auto-generated]</description>
-        <on>0x1</on>
-        <minimum>0.5</minimum>
-        <status>0x96</status>
-      </output>
-      <output>
-        <midino>0x30</midino>
-        <key>enabled</key>
-        <group>[EffectRack1_EffectUnit2_Effect4]</group>
-        <description>[auto-generated]</description>
-        <on>0x1</on>
-        <minimum>0.5</minimum>
-        <status>0x96</status>
-      </output>
-    </outputs>
+    <outputs/>
   </controller>
 </MixxxControllerPreset>
