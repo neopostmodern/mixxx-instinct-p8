@@ -84,3 +84,52 @@ Shift + turn: fast browse
 Regular press: switch pane or open (context dependent)
 Shift + press: unused
 Hold `utility` + turn: master volume
+
+## Behring CMD DV-1
+
+Focus/Master/Double should be "Focus"
+
+### Knobs above deck-buttons
+
+Volume of the channels
+
+### Deck-buttons
+
+Short: set active deck
+
+Hold a deck button and then...
+Slice: pause/play
+Erase: custom eject (see above)
+~~Store: load highlighted track~~ (hold Store, see below)
+~~Phrase: toggle loop~~
+Four knobs above deck buttons: base / mid / high / filter
+Short on another deck: move to deck, swap if deck is occupied (experimental, takes a few second)
+
+### Erase
+
+Short: see _Deck-Buttons_
+Hold: see _Numbers_
+
+### Store
+
+Hold:
+
+- Press number to set rating, 8 to delete rating
+- Press deck to load track
+
+### Phrase
+
+Short: toggle library large view
+
+### 1, 4, 8, 16 buttons
+
+On the deck you hold:
+
+1: back 32 bars
+4: forward 32 bars
+16: loop 32 bars
+
+### Numbers
+
+Short: Set or jump to hot cue
+Hold _Erase_ + short: Delete hot cue
