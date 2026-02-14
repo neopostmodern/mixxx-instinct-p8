@@ -140,25 +140,20 @@ DJControlInstinctP8.jogWheel = function (
 
   log("jog", direction, DJControlInstinctP8.scratchModeActive);
   if (DJControlInstinctP8.scratchModeActive) {
-    if (engine.getValue(group, "volume") < 0.5) {
-      // play_latched
+    engine.setValue(
+      group,
+      direction > 0 ? "beatjump_4_forward" : "beatjump_4_backward",
+      1
+    );
+  } else if (DJControlInstinctP8.utilityActive) {
+    DJControlInstinctP8.counters.utilityJog += 1;
+    if (DJControlInstinctP8.counters.utilityJog >= 20) {
       engine.setValue(
         group,
-        "playposition",
-        Math.min(1, Math.max(0, currentPlayPosition + direction / 1000))
+        direction > 0 ? "beatjump_32_forward" : "beatjump_32_backward",
+        1
       );
-    }
-  } else if (DJControlInstinctP8.utilityActive) {
-    if (engine.getValue(group, "volume") < 0.5) {
-      DJControlInstinctP8.counters.utilityJog += 1;
-      if (DJControlInstinctP8.counters.utilityJog >= 20) {
-        engine.setValue(
-          group,
-          direction > 0 ? "beatjump_32_forward" : "beatjump_32_backward",
-          1
-        );
-        DJControlInstinctP8.counters.utilityJog = 0;
-      }
+      DJControlInstinctP8.counters.utilityJog = 0;
     }
   } else {
     engine.setValue(group, "jog", 0.25 * direction);
@@ -171,61 +166,59 @@ DJControlInstinctP8.pitch = function (channel, control, value, status, group) {
   const currentPlayPosition = engine.getValue(group, "playposition");
 
   if (DJControlInstinctP8.utilityActive) {
-    if (engine.getValue(group, "volume") < 0.5) {
-      DJControlInstinctP8.counters.utilityScratchJog += 1;
-      if (DJControlInstinctP8.counters.utilityScratchJog >= 30) {
-        let lowerCue = null;
-        let cues = [];
-        for (let potentialCue = 1; potentialCue <= 8; potentialCue += 1) {
-          if (engine.getValue(group, `hotcue_${potentialCue}_status`) > 0) {
-            cues.push(potentialCue);
+    DJControlInstinctP8.counters.utilityScratchJog += 1;
+    if (DJControlInstinctP8.counters.utilityScratchJog >= 30) {
+      let lowerCue = null;
+      let cues = [];
+      for (let potentialCue = 1; potentialCue <= 8; potentialCue += 1) {
+        if (engine.getValue(group, `hotcue_${potentialCue}_status`) > 0) {
+          cues.push(potentialCue);
 
-            const cuePosition =
-              engine.getValue(group, `hotcue_${potentialCue}_position`) /
-              engine.getValue(group, "track_samples");
-            if (cuePosition < currentPlayPosition) {
-              lowerCue = potentialCue;
-            }
+          const cuePosition =
+            engine.getValue(group, `hotcue_${potentialCue}_position`) /
+            engine.getValue(group, "track_samples");
+          if (cuePosition < currentPlayPosition) {
+            lowerCue = potentialCue;
           }
         }
-
-        if (cues.length > 0) {
-          const lowerCueIndex = cues.indexOf(lowerCue);
-          if (lowerCueIndex === -1 && direction < 0) {
-            // nothing
-          } else {
-            let jumpToCueIndex = lowerCueIndex;
-            log(jumpToCueIndex, cues[jumpToCueIndex]);
-
-            if (direction > 0) {
-              if (jumpToCueIndex === -1) {
-                jumpToCueIndex = 0;
-              } else {
-                jumpToCueIndex += 1;
-              }
-
-              if (
-                Math.abs(
-                  engine.getValue(
-                    group,
-                    `hotcue_${cues[jumpToCueIndex]}_position`
-                  ) /
-                    engine.getValue(group, "track_samples") -
-                    currentPlayPosition
-                ) < 0.0001
-              ) {
-                jumpToCueIndex += 1;
-              }
-            }
-
-            log(jumpToCueIndex, cues[jumpToCueIndex]);
-
-            engine.setValue(group, `hotcue_${cues[jumpToCueIndex]}_goto`, 1);
-          }
-        }
-
-        DJControlInstinctP8.counters.utilityScratchJog = 0;
       }
+
+      if (cues.length > 0) {
+        const lowerCueIndex = cues.indexOf(lowerCue);
+        if (lowerCueIndex === -1 && direction < 0) {
+          // nothing
+        } else {
+          let jumpToCueIndex = lowerCueIndex;
+          log(jumpToCueIndex, cues[jumpToCueIndex]);
+
+          if (direction > 0) {
+            if (jumpToCueIndex === -1) {
+              jumpToCueIndex = 0;
+            } else {
+              jumpToCueIndex += 1;
+            }
+
+            if (
+              Math.abs(
+                engine.getValue(
+                  group,
+                  `hotcue_${cues[jumpToCueIndex]}_position`
+                ) /
+                  engine.getValue(group, "track_samples") -
+                  currentPlayPosition
+              ) < 0.0001
+            ) {
+              jumpToCueIndex += 1;
+            }
+          }
+
+          log(jumpToCueIndex, cues[jumpToCueIndex]);
+
+          engine.setValue(group, `hotcue_${cues[jumpToCueIndex]}_goto`, 1);
+        }
+      }
+
+      DJControlInstinctP8.counters.utilityScratchJog = 0;
     }
   } else {
     var delta = direction / 1000;
