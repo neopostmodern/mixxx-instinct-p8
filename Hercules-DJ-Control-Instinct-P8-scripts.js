@@ -572,16 +572,28 @@ DJControlInstinctP8.crossfader = function (
   status,
   group
 ) {
-  var group = value >= 64 ? "2" : "1";
-  var oppositeGroup = group == "1" ? "2" : "1";
-  var effectStrength = Math.abs(value - 64) / 64;
+  engine.setValue(
+    "[EffectRack1_EffectUnit" + deckControl.getActiveFocusedDeckIndex() + "]",
+    "mix",
+    value / 128
+  );
+  return;
+
+  const groupNumber = value >= 64 ? "2" : "1";
+  const oppositeGroupNumber = group == "1" ? "2" : "1";
+  const effectStrength = Math.abs(value - 64) / 64;
 
   engine.setValue(
-    "[EffectRack1_EffectUnit" + group + "]",
+    "[EffectRack1_EffectUnit" + groupNumber + "]",
     "mix",
     effectStrength
   );
-  engine.setValue("[EffectRack1_EffectUnit" + oppositeGroup + "]", "mix", 0);
+  engine.setValue(
+    "[EffectRack1_EffectUnit" + oppositeGroupNumber + "]",
+    "mix",
+    0
+  );
+};
 
 const WIDGET_ID = {
   TREE_NAV: 2,

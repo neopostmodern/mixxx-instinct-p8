@@ -75,7 +75,7 @@ Shift + short: play from cue position
 
 ### Crossfader
 
-Effect meta-strength right/left (middle position is neutral/0 effect for both sides)
+Effect mix from left (dry) to right (wet) for the focused channel
 
 ### Browsing knob
 
