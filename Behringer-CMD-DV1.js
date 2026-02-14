@@ -78,11 +78,6 @@ const deckStatusToColor = (deckStatus) => {
   }
   return deckStatus;
 };
-const changeDeckFocus = (newFocus) => {
-  deckControl.setActiveFocusedDeckIndex(newFocus);
-
-  engine.setValue("[Master]", "duckStrength", deckControl.encodeDuckFromDecks());
-};
 
 const copyDeck = (fromDeck, toDeck) => {
   engine.setValue(deckControl.getChannel(toDeck), "CloneFromDeck", fromDeck);
@@ -320,7 +315,7 @@ var Behringer = {
   init() {
     log("init");
 
-    changeDeckFocus(1); // triggers connectHotcueLEDs
+    deckControl.setActiveFocusedDeckIndex(1); // triggers connectHotcueLEDs
     connectDeckVolume();
     connectEffectButtonsAndEncoders();
     connectStemLEDs();
@@ -355,7 +350,7 @@ Behringer.deck_button_both = npmUtil.shortAndLong({
     if (Behringer.mode.holdDeck) {
       swapDecks(Behringer.mode.holdDeck, number);
     } else {
-      changeDeckFocus(number);
+      deckControl.setActiveFocusedDeckIndex(number);
     }
   },
   hold: {
@@ -545,8 +540,20 @@ Behringer.store_button_both = (channel, control, value) => {
       }
       setButtonColor(control, color);
     });
+
+    disconnectDeckFocusedLED();
+    npmUtil.range(CONTROLS_DECK_OFFSET, 1, 4).map((deckControl_) => {
+      const { number: deckNumber } = analyzeDeckControl(deckControl_);
+      setButtonColor(
+        deckControl_,
+        engine.getValue(deckControl.getChannel(deckNumber), "play")
+          ? COLOR_BUTTON_ORANGE
+          : COLOR_BUTTON_BLUE
+      );
+    });
   } else {
     connectHotcueLEDs();
+    connectDeckFocusedLED();
   }
 };
 
