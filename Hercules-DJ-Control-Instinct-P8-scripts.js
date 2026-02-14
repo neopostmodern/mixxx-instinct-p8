@@ -626,6 +626,19 @@ DJControlInstinctP8.pushBrowserButton = (channel, control, value) => {
     }
   }
 };
+
+// Load A/B buttons
+npmUtil.connectMidi(0x90, [0x5f, 0x60], (channel, control, value) => {
+  if (value === 0) {
+    return;
+  }
+  engine.setValue(
+    control === 0x5f ? "[Channel1]" : "[Channel2]",
+    "LoadSelectedTrack",
+    1
+  );
+});
+
 DJControlInstinctP8.browserKnob = (channel, control, value) => {
   if (DJControlInstinctP8.utilityActive) {
     npmUtil.updateValue("[Master]", "gain", (value < 64 ? 1 : -1) * 0.01);
