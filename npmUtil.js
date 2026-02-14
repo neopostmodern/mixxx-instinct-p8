@@ -79,7 +79,51 @@ class NpmUtil {
     }
     return values;
   }
-};
+
+  /**
+   * Takes arrays or single values and returns an array
+   * @template T
+   * @param {T | Array<T>} arrayOrSingleValue
+   * @returns {Array<T>}
+   */
+  ensureArray(arrayOrSingleValue) {
+    if (Array.isArray(arrayOrSingleValue)) {
+      return arrayOrSingleValue;
+    }
+
+    return [arrayOrSingleValue];
+  }
+
+  flattenArray(arrayOrSingleValue) {
+    const result = [];
+    for (let element of arrayOrSingleValue) {
+      if (Array.isArray(element)) {
+        result.push(...this.flattenArray(element));
+      } else {
+        result.push(element);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Batch connect MIDI handlers to all combinations of prefixes and notes
+   * @param {number|Array<number>} midiPrefixes One or more MIDI prefixes
+   * @param {number|Array<number>} midiNotes One or more MIDI notes
+   * @param {midi.InputCallback} handler MIDI handler
+   * @returns {Array<MidiInputHandlerController>} Array of MIDI connections
+   */
+  connectMidi(midiPrefixes, midiNotes, handler) {
+    return npmUtil.flattenArray(
+      this.ensureArray(midiPrefixes).map((midiPrefix) =>
+        this.ensureArray(midiNotes).map((midiNote) =>
+          midi.makeInputHandler(midiPrefix, midiNote, handler)
+        )
+      )
+    );
+  }
+
+}
 
 /** @constant @type {NpmUtil} */
 var npmUtil = new NpmUtil();

@@ -4,6 +4,11 @@ const log = (...args) => console.log("[NPM/Behringer]", ...args);
 
 const CHANNEL = 7 - 1;
 
+const MIDI_BUTTON_DOWN = 0x96;
+const MIDI_BUTTON_UP = 0x86;
+const MIDI_BUTTON_BOTH = [MIDI_BUTTON_DOWN, MIDI_BUTTON_UP];
+const MIDI_KNOB_TURN = 0xb6;
+
 const COLOR_BUTTON_ORANGE = 0x00;
 const COLOR_BUTTON_BLUE = 0x01;
 const COLOR_BUTTON_BLUE_BLINK = 0x02;
@@ -378,6 +383,11 @@ Behringer.deck_button_both = npmUtil.shortAndLong({
     },
   },
 });
+npmUtil.connectMidi(
+  MIDI_BUTTON_BOTH,
+  npmUtil.range(0x40, 1, 4),
+  Behringer.deck_button_both
+);
 
 /* midi 0x40-0x43 */
 Behringer.deck_encoder = (channel, control, value) => {
@@ -428,6 +438,13 @@ Behringer.fx_encoder = (channel, control, value) => {
   // midi.sendShortMsg(channel | ENCODER_LED_COMMAND, control, LED);
   // log((control - 0x14) % 4);
 };
+// 2 rows, 4 knobs, 4 effects
+npmUtil.connectMidi(
+  MIDI_KNOB_TURN,
+  npmUtil.range(0x14, 1, 2 * 4 * 4),
+  Behringer.fx_encoder
+);
+
 // /* midi */
 // Behringer.fxOn_button_down = (channel, control) => {
 //   midi.sendShortMsg(channel | BUTTON_LED_COMMAND, control, 0x01);
