@@ -45,11 +45,6 @@ var DJControlInstinctP8 = {
 DJControlInstinctP8.init = function () {
   engine.setValue("[Master]", "num_samplers", 8);
 
-  // turn off all lights
-  for (var i = 1; i < 0x5c; i++) {
-    midi.sendShortMsg(0x90, i, 0x00);
-  }
-
   // Query the controller for knob and slider positions...
   midi.sendShortMsg(0xb0, 0x7f, 0x7f);
 
@@ -69,6 +64,17 @@ DJControlInstinctP8.shutdown = function () {
     midi.sendShortMsg(0x90, i, 0x00);
   }
 };
+
+engine.makeConnection(
+  "[App]",
+  "indicator_500ms",
+  npmUtil.engineBlink(1, 100, (on) => {
+    if (!on) {
+      return;
+    }
+    midi.sendShortMsg(0x90, 0x01, 0x7d);
+  })
+);
 
 DJControlInstinctP8.noop = function (midino, control, value, status, group) {
   log(
