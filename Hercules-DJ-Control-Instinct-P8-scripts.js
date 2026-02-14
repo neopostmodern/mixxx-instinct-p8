@@ -233,7 +233,7 @@ DJControlInstinctP8.pitch = function (channel, control, value, status, group) {
   }
 };
 
-// LOADED STATUS & EJECTING
+// Pad (outer bottom) – LOADED STATUS & EJECTING
 DJControlInstinctP8.ejectAndSwitch = function (
   channel,
   control,
@@ -375,7 +375,7 @@ DJControlInstinctP8.multiKnobShift = (
   }
 };
 
-// KEYLOCK
+// Pad (outer top) – KEYLOCK
 DJControlInstinctP8.keylock = function (
   channel,
   control,
@@ -445,7 +445,7 @@ engine.makeConnection("[Channel2]", "reset_key", function (value) {
   );
 });
 
-// UTILITY
+// Pad (inner bottom) – UTILITY
 DJControlInstinctP8.utilityPad = function (
   channel,
   control,

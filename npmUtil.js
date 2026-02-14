@@ -10,9 +10,9 @@ class NpmUtil {
 
   /**
    * Callback-factory for `indicator_500ms` that gets called in a specified cycle on both edges
-   * @param {number} on
-   * @param {number} off
-   * @param {(state: boolean) => void} callback
+   * @param {number} on how many ticks the on state lasts
+   * @param {number} off how many ticks the off state lasts
+   * @param {(state: boolean) => void} callback Callback on both edges that gets passed next state as argument
    * @returns
    */
   engineBlink(on, off, callback) {

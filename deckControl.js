@@ -4,6 +4,18 @@
 
 const DUCK_SIZE = 2 ** 16;
 
+/*
+ there are three (two?) properties for a specific deck:
+ - active: connected to one half of physical two-deck controller
+ - focus: connected to physically only available once controller aspects
+ 
+ thus there are four possible stats:
+ - active + focus
+ - active (the other deck available on the two-deck controller that is not "focus"ed)
+ - additional
+ - disabled
+ (how are the last two defined?)
+ */
 const DECK_DISABLED = 0;
 const DECK_ACTIVE = 1;
 const DECK_ACTIVE_FOCUS = 2;
