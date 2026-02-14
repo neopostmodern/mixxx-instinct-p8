@@ -52,7 +52,7 @@ class DeckControl {
   }
 
   /**
-   * Set the new focused deck in memory, without updating the engine or MIDI devices
+   * Set the new focused deck in memory (incl. updating the engine & MIDI devices)
    * @param {DeckNumber} newFocus
    */
   setActiveFocusedDeckIndex(newFocus) {
@@ -63,8 +63,14 @@ class DeckControl {
       this.decks[this.getActiveFocusedDeckIndex()] = DECK_ACTIVE;
     }
     this.decks[newFocus] = DECK_ACTIVE_FOCUS;
+
+    engine.setValue(
+      "[Master]",
+      "duckStrength",
+      deckControl.encodeDuckFromDecks()
+    );
   }
-  
+
   getChannel(deck = this.getActiveFocusedDeckIndex()) {
     return `[Channel${deck}]`;
   }
@@ -94,6 +100,7 @@ class DeckControl {
 
     engine.setValue(group, "eject", 1);
     engine.setValue(group, "pregain", 1);
+    engine.setValue(group, "keylock", 0);
     engine.setValue("[QuickEffectRack1_" + group + "]", "super1", 0.5);
     engine.setValue(
       "[EffectRack1_EffectUnit" +
@@ -107,6 +114,13 @@ class DeckControl {
         "[EqualizerRack1_" + group + "_Effect1]",
         "parameter" + i,
         1
+      );
+    }
+    for (var deckIndex = 1; deckIndex <= 4; deckIndex++) {
+      engine.setValue(
+        deckControl.getChannel(/** @type {DeckNumber} */ (deckIndex)),
+        "pfl",
+        deckIndex === deckNumber ? 1 : 0
       );
     }
   }

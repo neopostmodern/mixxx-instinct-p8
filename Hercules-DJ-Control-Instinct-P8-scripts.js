@@ -57,6 +57,8 @@ DJControlInstinctP8.init = function () {
   engine.setValue("[Channel1]", "rate_set_default", 1.0);
   engine.setValue("[Channel2]", "rate_set_default", 1.0);
 
+  deckControl.setActiveFocusedDeckIndex(1);
+
   print("Hercules Instinct P8 custom bindings initialized.");
 };
 
@@ -239,35 +241,14 @@ DJControlInstinctP8.ejectAndSwitch = function (
   status,
   group
 ) {
-  log("switch", channel, group);
-
   if (value === 0) {
     return;
   }
 
-  if (engine.getValue(group, "play")) {
-    return;
-  }
-
-  engine.setValue(group, "eject", 1);
-  engine.setValue(group, "pfl", 1);
-  engine.setValue(group, "pregain", 1);
-  engine.setValue("[QuickEffectRack1_" + group + "]", "super1", 0.5);
-  engine.setValue(
-    "[EffectRack1_EffectUnit" +
-      group.replace("[Channel", "").replace("]", "") +
-      "]",
-    "mix",
-    0
+  deckControl.ejectDeck(script.deckFromGroup(group));
+  deckControl.setActiveFocusedDeckIndex(
+    /** @type {DeckNumber} */ (script.deckFromGroup(group))
   );
-  engine.setValue(oppositeGroup(group), "pfl", 0);
-  for (var i = 1; i <= 3; i++) {
-    engine.setValue(
-      "[EqualizerRack1_" + group + "_Effect1]",
-      "parameter" + i,
-      1
-    );
-  }
 };
 engine.makeConnection(
   "[Channel1]",
