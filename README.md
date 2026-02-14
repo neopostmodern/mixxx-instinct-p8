@@ -32,6 +32,9 @@ Hold + `knob`: adjust pre-gain
 Hold + then hold `shift` + `knob`: adjust key
 _Also used in combination with jog wheel and browsing knob, see below_
 
+Blue light: deck is active and focused
+Red light: button is held
+
 ### Scratch (button)
 
 Short press: toggle large library view

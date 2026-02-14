@@ -40,7 +40,34 @@ var DJControlInstinctP8 = {
     utilityJog: 0,
     utilityScratchJog: 0,
   },
+
+  CC: {
+    SET_LED: 0x90,
+  },
+  LED: {
+    OFF: 0x00,
+    BLUE: 0x7d,
+    RED: 0x7e,
+    PURPLE: 0x7f,
+  }
 };
+
+const deckChangeHandler = () => {
+  const activeFocusedDeckIndex = deckControl.getActiveFocusedDeckIndex();
+
+  // channel 1
+  midi.sendShortMsg(
+    DJControlInstinctP8.CC.SET_LED,
+    0x1c,
+    activeFocusedDeckIndex === 1 ? DJControlInstinctP8.LED.BLUE : DJControlInstinctP8.LED.OFF
+  );
+  // channel 2
+  midi.sendShortMsg(
+    DJControlInstinctP8.CC.SET_LED,
+    0x4b,
+    activeFocusedDeckIndex === 2 ? DJControlInstinctP8.LED.BLUE : DJControlInstinctP8.LED.OFF
+  );
+}
 
 DJControlInstinctP8.init = function () {
   engine.setValue("[Master]", "num_samplers", 8);
@@ -52,7 +79,8 @@ DJControlInstinctP8.init = function () {
   engine.setValue("[Channel1]", "rate_set_default", 1.0);
   engine.setValue("[Channel2]", "rate_set_default", 1.0);
 
-  deckControl.setActiveFocusedDeckIndex(1);
+  deckControl.events.onDeckChange(deckChangeHandler);
+  deckChangeHandler();
 
   print("Hercules Instinct P8 custom bindings initialized.");
 };
@@ -245,23 +273,24 @@ DJControlInstinctP8.ejectAndSwitch = function (
   }
 
   deckControl.ejectDeck(script.deckFromGroup(group));
-  deckControl.setActiveFocusedDeckIndex(
-    /** @type {DeckNumber} */ (script.deckFromGroup(group))
-  );
 };
+
+const trackLoadedHandler = (value, group, control) => {
+  const deck = /** @type {DeckNumber} */ (script.deckFromGroup(group))
+  if (value) {
+    deckControl.setActiveFocusedDeckIndex(deck);
+  }
+  midi.sendShortMsg(0x90, deck === 1 ? 0x1b : 0x4c, value ? 0x7e : 0x00);
+}
 engine.makeConnection(
   "[Channel1]",
   "track_loaded",
-  function (value, group, control) {
-    midi.sendShortMsg(0x90, 0x1b, value ? 0x7e : 0x00);
-  }
+  trackLoadedHandler
 );
 engine.makeConnection(
   "[Channel2]",
   "track_loaded",
-  function (value, group, control) {
-    midi.sendShortMsg(0x90, 0x4c, value ? 0x7e : 0x00);
-  }
+  trackLoadedHandler
 );
 
 // KNOB (multi-use depending on activity)
@@ -467,8 +496,10 @@ DJControlInstinctP8.utilityPad = function (
   }
   midi.sendShortMsg(
     0x90,
-    group === "[Channel1]" ? 0x1a : 0x49,
-    DJControlInstinctP8.utilityActive ? 0x7e : 0x00
+    group === "[Channel1]" ? 0x1c : 0x4b,
+    DJControlInstinctP8.utilityActive
+      ? (deckControl.getActiveFocusedDeckIndex() === script.deckFromGroup(group) ? DJControlInstinctP8.LED.PURPLE : DJControlInstinctP8.LED.RED)
+      : (deckControl.getActiveFocusedDeckIndex() === script.deckFromGroup(group) ? DJControlInstinctP8.LED.BLUE : DJControlInstinctP8.LED.OFF)
   );
 };
 
