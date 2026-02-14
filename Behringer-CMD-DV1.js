@@ -353,7 +353,13 @@ Behringer.deck_button_both = npmUtil.shortAndLong({
   id: "deck",
   push: (channel, control) => {
     const { number } = analyzeDeckControl(control);
-    if (Behringer.mode.holdDeck) {
+    if (Behringer.mode.store) {
+      engine.setParameter(
+        deckControl.getChannel(number),
+        "LoadSelectedTrack",
+        1
+      );
+    } else if (Behringer.mode.holdDeck) {
       swapDecks(Behringer.mode.holdDeck, number);
     } else {
       deckControl.setActiveFocusedDeckIndex(number);
