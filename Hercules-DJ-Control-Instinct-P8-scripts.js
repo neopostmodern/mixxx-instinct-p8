@@ -79,22 +79,39 @@ DJControlInstinctP8.noop = function (midino, control, value, status, group) {
   );
 };
 
-// scratchmode on? with lights
-DJControlInstinctP8.scratchMode = function (
-  channel,
-  control,
-  value,
-  status,
-  group
-) {
-  DJControlInstinctP8.scratchModeActive =
-    !DJControlInstinctP8.scratchModeActive;
-  midi.sendShortMsg(
-    0x90,
-    0x2d,
-    DJControlInstinctP8.scratchModeActive ? 0x7f : 0x00
-  );
-};
+DJControlInstinctP8.scratchMode = npmUtil.shortAndLong({
+  id: "scratch",
+  push: (channel, control) => {
+    if (DJControlInstinctP8.utilityActive) {
+      const utilityChannel = deckControl.getChannel(
+        DJControlInstinctP8.utilityActive
+      );
+      engine.setValue(utilityChannel, "beats_translate_half", 1);
+      return;
+    }
+
+    script.toggleControl("[Skin]", "show_maximized_library");
+  },
+  hold: {
+    both: (channel, control) => {
+      if (DJControlInstinctP8.utilityActive) {
+        // only defined for push
+        return;
+      }
+
+      DJControlInstinctP8.scratchModeActive =
+        !DJControlInstinctP8.scratchModeActive;
+
+      // update LED of 'scratch' button
+      midi.sendShortMsg(
+        0x90,
+        0x2d,
+        DJControlInstinctP8.scratchModeActive ? 0x7f : 0x00
+      );
+    },
+  },
+});
+
 DJControlInstinctP8.shiftScratchMode = function (
   channel,
   control,

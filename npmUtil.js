@@ -43,17 +43,27 @@ class NpmUtil {
     (parameter ? engine.setParameter : engine.setValue)(group, key, newValue);
   }
 
-  shortAndLong({ id, push, hold: { start, end } }) {
+  shortAndLong({
+    id,
+    push,
+    hold: {
+      start = (...args) => {},
+      end = (...args) => {},
+      both = (...args) => {},
+    },
+  }) {
     return (...args) => {
       const value = args[2];
       if (value === 0) {
         end(...args);
+        both(...args);
         if (new Date().getTime() - shortAndLongTimes[id] < 500) {
           push(...args);
         }
       } else {
         shortAndLongTimes[id] = new Date().getTime();
         start(...args);
+        both(...args);
       }
     };
   }

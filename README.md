@@ -18,9 +18,17 @@ Short: eject track, enable headphone for channel, disable headphone for other ch
 
 ### Inner bottom: Utilities
 Hold + press other utility button: set beat grid
+Hold + press `scratch`: adjust grid by half a beat
 Hold + `knob`: adjust pre-gain
 Hold + then hold `shift` + `knob`: adjust key
 *Also used in combination with jog wheel, see below*
+
+### Scratch (button)
+
+Short press: toggle large library view
+TODO: hold + any pad = hotcues, left first four, right last four
+
+See _Utilities_ and _Jog wheel_
 
 ### Jog wheel
 Regular: Slow jog wheel
