@@ -574,6 +574,33 @@ Behringer.library_button_down = () => {
   script.toggleControl("[Skin]", "show_maximized_library"); //, 1, { toggle: true });
 };
 
+/* midi 0x50-0x53 = 1, 4, 8, 16 row */
+Behringer.num1_button_down = () => {
+  engine.setValue(
+    deckControl.getChannel(Behringer.mode.holdDeck), // deckControl.getActiveFocusedDeckIndex()
+    "beatjump_32_backward", // direction > 0 ? "beatjump_32_forward" :
+    1
+  );
+};
+Behringer.num4_button_down = () => {
+  engine.setValue(
+    deckControl.getChannel(Behringer.mode.holdDeck), // deckControl.getActiveFocusedDeckIndex()
+    "beatjump_32_forward",
+    1
+  );
+};
+npmUtil.connectMidi(MIDI_BUTTON_DOWN, 0x50, Behringer.num1_button_down);
+npmUtil.connectMidi(MIDI_BUTTON_DOWN, 0x51, Behringer.num4_button_down);
+
+Behringer.num16_button_down = () => {
+  engine.setValue(
+    deckControl.getChannel(Behringer.mode.holdDeck), // deckControl.getActiveFocusedDeckIndex()
+    "beatloop_32_activate",
+    1
+  );
+};
+npmUtil.connectMidi(MIDI_BUTTON_DOWN, 0x53, Behringer.num16_button_down);
+
 /* midi 0x58-0x5F */
 Behringer.hotcue_button_down = (channel, control) => {
   const { number } = analyzeHotcueControl(control);
