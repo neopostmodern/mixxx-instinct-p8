@@ -508,4 +508,59 @@ DJControlInstinctP8.crossfader = function (
     effectStrength
   );
   engine.setValue("[EffectRack1_EffectUnit" + oppositeGroup + "]", "mix", 0);
+
+const WIDGET_ID = {
+  TREE_NAV: 2,
+  LIST: 3,
+}
+DJControlInstinctP8.pushBrowserButton = (channel, control, value) => {
+  if (value === 0) {
+    return;
+  }
+
+  const isShiftPressed = control === 44;
+  const currentlyFocusedWidget = engine.getValue("[Library]", "focused_widget");
+
+
+  if (isShiftPressed) {
+    if (currentlyFocusedWidget === WIDGET_ID.LIST) {
+      // todo: load to preview?
+    } else {
+      // unused for now
+    }
+  } else {
+    if (currentlyFocusedWidget === WIDGET_ID.LIST) {
+      engine.setValue(
+        "[Library]",
+        "focused_widget",
+        WIDGET_ID.TREE_NAV
+      );
+    } else {
+      engine.setValue("[Library]", "GoToItem", 1);
+    }
+  }
+};
+DJControlInstinctP8.browserKnob = (channel, control, value) => {
+  if (DJControlInstinctP8.utilityActive) {
+    npmUtil.updateValue("[Master]", "gain", (value < 64 ? 1 : -1) * 0.01);
+  } else {
+    if (engine.getValue("[Library]", "focused_widget") === 0) {
+      engine.setValue(
+        "[Playlist]",
+        value < 64 ? "SelectNextTrack" : "SelectPrevTrack",
+        1
+      );
+    } else {
+      engine.setValue("[Library]", "MoveVertical", value < 64 ? 1 : -1);
+    }
+  }
+};
+DJControlInstinctP8.browserKnobShift = (channel, control, value) => {
+  for (let scrollCount = 0; scrollCount < 20; scrollCount++) {
+    engine.setValue(
+      "[Playlist]",
+      value < 64 ? "SelectNextTrack" : "SelectPrevTrack",
+      1
+    );
+  }
 };

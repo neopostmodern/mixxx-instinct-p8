@@ -49,6 +49,9 @@ Shift + short: play from cue position
 Effect meta-strength right/left (middle position is neutral/0 effect for both sides)
 
 ### Browsing knob
+
 Regular turn: browse
-Regular press: switch pane
-Shift + press: master volume
+Shift + turn: fast browse
+Regular press: switch pane or open (context dependent)
+Shift + press: unused
+Hold `utility` + turn: master volume

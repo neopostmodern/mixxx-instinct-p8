@@ -103,23 +103,21 @@ Based on:
       </control>
       <!-- Browser Button -->
       <control>
-        <group>[Library]</group>
-        <key>MoveFocusForward</key>
-        <description>Move Focus Forward (Tab) (Browser Button)</description>
+        <key>DJControlInstinctP8.pushBrowserButton</key>
+        <description>Browser Button (push)</description>
         <status>0x90</status>
         <midino>0x2B</midino>
         <options>
-          <selectknob />
+          <script-binding />
         </options>
       </control>
       <control>
-        <group>[Library]</group>
-        <key>MoveFocusBackward</key>
-        <description>Move Focus Backward (Shift+Tab) (Shift+Browser Button)</description>
+        <key>DJControlInstinctP8.pushBrowserButton</key>
+        <description>Shift+Browser Button (push)</description>
         <status>0x90</status>
         <midino>0x2C</midino>
         <options>
-          <selectknob />
+          <script-binding />
         </options>
       </control>
       <!-- Scratch Button -->
@@ -293,23 +291,21 @@ Based on:
       </control>
       <!-- Browser Knob -->
       <control>
-        <group>[Library]</group>
-        <key>MoveVertical</key>
-        <description>Move Vertical (Browser Knob)</description>
+        <key>DJControlInstinctP8.browserKnob</key>
+        <description>Browser Knob</description>
         <status>0xB0</status>
         <midino>0x38</midino>
         <options>
-          <selectknob />
+          <script-binding />
         </options>
       </control>
       <control>
-        <group>[Master]</group>
-        <key>gain</key>
-        <description>Master Gain (Shift+Browser Knob)</description>
+        <key>DJControlInstinctP8.browserKnobShift</key>
+        <description>Shift+Browser Knob</description>
         <status>0xB0</status>
         <midino>0x39</midino>
         <options>
-          <diff />
+          <script-binding />
         </options>
       </control>
       <!-- Alternative -->
