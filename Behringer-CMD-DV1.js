@@ -80,31 +80,35 @@ const deckStatusToColor = (deckStatus) => {
 };
 
 const copyDeck = (fromDeck, toDeck) => {
+  log("Copying deck from", fromDeck, "to", toDeck);
   engine.setValue(deckControl.getChannel(toDeck), "CloneFromDeck", fromDeck);
   const valuesToCopy = [
     (deck) => [deckControl.getChannel(deck), "sync_enabled"],
     (deck) => [deckControl.getChannel(deck), "pregain"],
-    (deck) => [
-      `[EqualizerRack1_${deckControl.getChannel(deck)}_Effect1]`,
-      "parameter3",
-    ],
-    (deck) => [
-      `[EqualizerRack1_${deckControl.getChannel(deck)}_Effect1]`,
-      "parameter2",
-    ],
-    (deck) => [
-      `[EqualizerRack1_${deckControl.getChannel(deck)}_Effect1]`,
-      "parameter1",
-    ],
+    ...npmUtil
+      .range(1, 1, 3)
+      .map((parameterIndex) => (deck) => [
+        `[EqualizerRack1_${deckControl.getChannel(deck)}_Effect1]`,
+        `parameter${parameterIndex}`,
+      ]),
     (deck) => [`[QuickEffectRack1_${deckControl.getChannel(deck)}]`, "super1"],
+    (deck) => [deckControl.getChannel(deck), "keylock"],
     // todo: effect rack "send" assignments
-    // todo: pitch adjust (locked, adjusted to)
+    ...npmUtil
+      .range(1, 1, 4)
+      .map((stemIndex) => (deck) => [
+        `[Channel${deck}_Stem${stemIndex}]`,
+        "volume",
+      ]),
   ];
-  valuesToCopy.forEach((valuePair) => {
-    const [fromGroup, fromKey] = valuePair(fromDeck);
-    const [toGroup, toKey] = valuePair(toDeck);
-    engine.setValue(toGroup, toKey, engine.getValue(fromGroup, fromKey));
-  });
+
+  npmUtil.setTimeout(() => {
+    valuesToCopy.forEach((valuePair) => {
+      const [fromGroup, fromKey] = valuePair(fromDeck);
+      const [toGroup, toKey] = valuePair(toDeck);
+      engine.setValue(toGroup, toKey, engine.getValue(fromGroup, fromKey));
+    });
+  }, 100);
 };
 const moveDeck = (fromDeck, toDeck) => {
   engine.setValue(deckControl.getChannel(toDeck), "volume", 0);
@@ -122,10 +126,12 @@ const moveDeck = (fromDeck, toDeck) => {
 };
 const swapDecks = (fromDeck, toDeck) => {
   if (engine.getValue(deckControl.getChannel(toDeck), "track_loaded")) {
-    const freeDeck = npmUtil.range(1, 1, engine.getValue("[App]", "num_decks")).find(
-      (deckNumber) =>
-        !engine.getValue(deckControl.getChannel(deckNumber), "track_loaded")
-    );
+    const freeDeck = npmUtil
+      .range(1, 1, engine.getValue("[App]", "num_decks"))
+      .find(
+        (deckNumber) =>
+          !engine.getValue(deckControl.getChannel(deckNumber), "track_loaded")
+      );
     if (!freeDeck) {
       log("Warning! No free deck for swapping available");
       return;
