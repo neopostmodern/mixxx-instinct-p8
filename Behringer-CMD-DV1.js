@@ -222,8 +222,14 @@ const disconnectDeckVolume = () => {
 };
 
 const connectEffectButtonsAndEncoders = () => {
-  npmUtil.range(CONTROLS_FX_OFFSET, 1, 32).forEach((control) => {
+  npmUtil.range(CONTROLS_FX_OFFSET, 1, 2 * 4 * 4).forEach((control) => {
     const { unit, fxNumber, position } = analyzeFxControl(control);
+
+    if (fxNumber === 4) {
+      // FX4 is used for stems
+      return;
+    }
+
     if (position === 0) {
       // todo
       midiMappings[control] = {
@@ -275,6 +281,28 @@ const connectEffectButtonsAndEncoders = () => {
     }
   });
 };
+
+const connectStemLEDs = () => {
+  npmUtil.range(CONTROLS_FX_OFFSET, 1, 2 * 4 * 4).forEach((control) => {
+    const { unit, fxNumber, position } = analyzeFxControl(control);
+
+    if (fxNumber !== 4) {
+      // only FX4 is used for stems
+      return;
+    }
+
+    const channel = unit; // todo: make 4-deck compatible
+    const stem = position + 1;
+
+    log("connect", channel, stem);
+
+    engine
+      .makeConnection(`[Channel${channel}_Stem${stem}]`, "volume", (value) => {
+        setEncoderLEDs(control, value);
+      })
+      .trigger();
+  });
+};
 //#endregion
 
 var Behringer = {
@@ -295,6 +323,7 @@ var Behringer = {
     changeDeckFocus(1); // triggers connectHotcueLEDs
     connectDeckVolume();
     connectEffectButtonsAndEncoders();
+    connectStemLEDs();
   },
   shutdown() {
     log("shutdown");
@@ -411,10 +440,30 @@ Behringer.deck_encoder = (channel, control, value) => {
   }
 };
 
+/**
+ * Handle updates to the stem volume from function encoders
+ * @param {("left"|"right")} side
+ * @param {number} position
+ * @param {number} value
+ */
+Behringer.stem_control = (side, position, value) => {
+  const delta = value - ENCODER_VALUE_OFFSET;
+  npmUtil.updateValue(
+    `[Channel${side === "left" ? 1 : 2}_Stem${position + 1}]`,
+    "volume",
+    delta * 0.04
+  );
+};
+
 // 2 rows * 4 fx * 4 encoders
 /* midi 0x14-0x33 */
 Behringer.fx_encoder = (channel, control, value) => {
   const { unit, fxNumber, position } = analyzeFxControl(control);
+
+  if (fxNumber === 4) {
+    Behringer.stem_control(unit === 2 ? "right" : "left", position, value);
+    return;
+  }
 
   const delta = value - ENCODER_VALUE_OFFSET;
 
