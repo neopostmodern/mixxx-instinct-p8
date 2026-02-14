@@ -30,7 +30,8 @@ var DJControlInstinctP8 = {
   scratchModeActive: false,
   // also use move loop / utility toggle for both sides, despite having two buttons
   moveLoopActive: false,
-  utilityActive: false,
+  /** @type (DeckNumber | null) */
+  utilityActive: null,
 
   timers: {
     loopPressed: 0,
@@ -529,12 +530,12 @@ DJControlInstinctP8.utilityPad = function (
   }
 
   if (value === 0) {
-    DJControlInstinctP8.utilityActive = false;
+    DJControlInstinctP8.utilityActive = null;
   } else {
     if (DJControlInstinctP8.utilityActive) {
       engine.setValue(oppositeGroup(group), "beats_translate_curpos", 1);
     } else {
-      DJControlInstinctP8.utilityActive = true;
+      DJControlInstinctP8.utilityActive = group === "[Channel1]" ? 1 : 2;
       DJControlInstinctP8.counters.utilityJog = 0;
       DJControlInstinctP8.counters.utilityScratchJog = 0;
     }
