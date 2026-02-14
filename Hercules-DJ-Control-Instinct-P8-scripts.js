@@ -69,6 +69,19 @@ const deckChangeHandler = () => {
   );
 }
 
+const hotcueHandler = (number) => {
+  const hotcueStatus = engine.getValue(
+    deckControl.getChannel(),
+    `hotcue_${number}_status`
+  );
+
+  if (hotcueStatus === 0) {
+    engine.setValue(deckControl.getChannel(), `hotcue_${number}_set`, 1);
+  } else {
+    engine.setValue(deckControl.getChannel(), `hotcue_${number}_goto`, 1);
+  }
+};
+
 DJControlInstinctP8.init = function () {
   engine.setValue("[Master]", "num_samplers", 8);
 
@@ -268,6 +281,14 @@ DJControlInstinctP8.ejectAndSwitch = function (
   status,
   group
 ) {
+  if (this.scratchModeActive) {
+    if (value > 0) {
+      hotcueHandler(group === "[Channel1]" ? 3 : 8);
+    }
+
+    return;
+  }
+
   if (value === 0) {
     return;
   }
@@ -348,6 +369,14 @@ DJControlInstinctP8.loopPad = function (
   status,
   group
 ) {
+  if (this.scratchModeActive) {
+    if (value > 0) {
+      hotcueHandler(group === "[Channel1]" ? 2 : 5);
+    }
+
+    return;
+  }
+
   if (value === 0) {
     DJControlInstinctP8.moveLoopActive = false;
     if (new Date().getTime() - DJControlInstinctP8.timers.loopPressed < 500) {
@@ -411,6 +440,14 @@ DJControlInstinctP8.keylock = function (
   status,
   group
 ) {
+  if (this.scratchModeActive) {
+    if (value > 0) {
+      hotcueHandler(group === "[Channel1]" ? 1 : 6);
+    }
+
+    return;
+  }
+
   if (value === 0) {
     if (
       new Date().getTime() - DJControlInstinctP8.timers.keylockPressed <
@@ -482,6 +519,14 @@ DJControlInstinctP8.utilityPad = function (
   group
 ) {
   // todo: stars_up, stars_down
+
+  if (this.scratchModeActive) {
+    if (value > 0) {
+      hotcueHandler(group === "[Channel1]" ? 4 : 7);
+    }
+
+    return;
+  }
 
   if (value === 0) {
     DJControlInstinctP8.utilityActive = false;

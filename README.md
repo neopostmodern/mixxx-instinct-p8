@@ -38,9 +38,14 @@ Red light: button is held
 ### Scratch (button)
 
 Short press: toggle large library view
-TODO: hold + any pad = hotcues, left first four, right last four
+Hold + press *any pad*: set or trigger hotcue; on the left pads are the first four and right the last four, always left to right, top to bottom
+```txt
+1 2 | 5 6
+3 4 | 7 8
+```
+(TODO: LED feedback when scratch is held, show already set hotcues)
 
-See _Utilities_ and _Jog wheel_
+Also see _Utilities_ and _Jog wheel_
 
 ### Jog wheel
 
