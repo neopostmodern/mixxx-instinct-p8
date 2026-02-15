@@ -32,6 +32,8 @@ var DJControlInstinctP8 = {
   moveLoopActive: false,
   /** @type (DeckNumber | null) */
   utilityActive: null,
+  /** @type (DeckNumber | null) */
+  shiftActive: null,
 
   timers: {
     loopPressed: 0,
@@ -128,6 +130,15 @@ DJControlInstinctP8.noop = function (midino, control, value, status, group) {
     "group " + group
   );
 };
+
+// track shift (left/right) button
+npmUtil.connectMidi(0x90, [0x63, 0x2f], (channel, control, value) => {
+  if (value === 0) {
+    DJControlInstinctP8.shiftActive = null;
+  } else {
+    DJControlInstinctP8.shiftActive = control === 0x63 ? 1 : 2;
+  }
+});
 
 DJControlInstinctP8.scratchMode = npmUtil.shortAndLong({
   id: "scratch",
@@ -632,8 +643,13 @@ npmUtil.connectMidi(0x90, [0x5f, 0x60], (channel, control, value) => {
   if (value === 0) {
     return;
   }
+  const deckNumber = control === 0x5f ? deckControl.getLeftDeckIndex() : deckControl.getRightDeckIndex()
+  if (DJControlInstinctP8.shiftActive) {
+    deckControl.setDeckActive(deckControl.getSiblingDeckNumber(deckNumber))
+    return;
+  }
   engine.setValue(
-    control === 0x5f ? "[Channel1]" : "[Channel2]",
+    deckControl.getChannel(deckNumber),
     "LoadSelectedTrack",
     1
   );

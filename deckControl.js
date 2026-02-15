@@ -21,19 +21,12 @@ const DECK_ACTIVE = 1;
 const DECK_ACTIVE_FOCUS = 2;
 const DECK_ADDITIONAL = 3;
 
-const DECK_SIBBLINGS = {
+const DECK_SIBLINGS = {
   1: 3,
   2: 4,
   3: 1,
   4: 2,
 };
-
-class Test {
-  constructor() {
-    console.log("lol");
-  }
-}
-new Test();
 
 class DeckControl {
   constructor() {
@@ -63,14 +56,21 @@ class DeckControl {
     return /** @type {DeckNumber} */ (this.decks.indexOf(DECK_ACTIVE_FOCUS));
   }
 
+  getLeftDeckIndex() {
+    return this.decks[1] === DECK_ACTIVE || this.decks[1] === DECK_ACTIVE_FOCUS ? 1 : 3;
+  }
+  getRightDeckIndex() {
+    return this.decks[2] === DECK_ACTIVE || this.decks[2] === DECK_ACTIVE_FOCUS ? 2 : 4;
+  }
+
   /**
    * Set the new focused deck in memory (incl. updating the engine & MIDI devices)
    * @param {DeckNumber} newFocus
    */
   setActiveFocusedDeckIndex(newFocus) {
-    const sibblingIndex = DECK_SIBBLINGS[newFocus];
-    if (this.decks[sibblingIndex]) {
-      this.decks[sibblingIndex] = DECK_DISABLED;
+    const siblingIndex = DECK_SIBLINGS[newFocus];
+    if (this.decks[siblingIndex]) {
+      this.decks[siblingIndex] = DECK_DISABLED;
     } else {
       this.decks[this.getActiveFocusedDeckIndex()] = DECK_ACTIVE;
     }
@@ -81,6 +81,27 @@ class DeckControl {
       "duckStrength",
       deckControl.encodeDuckFromDecks()
     );
+  }
+
+  /**
+   * Set the new focused deck in memory (incl. updating the engine & MIDI devices)
+   * @param {DeckNumber} deckNumber
+   */
+  setDeckActive(deckNumber) {
+    log("activate", deckNumber)
+    const siblingIndex = DECK_SIBLINGS[deckNumber];
+    this.decks[siblingIndex] = DECK_ADDITIONAL;
+    this.decks[deckNumber] = DECK_ACTIVE; // maybe should inherit focus status from sibling?
+
+    engine.setValue(
+      "[Master]",
+      "duckStrength",
+      deckControl.encodeDuckFromDecks()
+    );
+  }
+
+  getSiblingDeckNumber(deckNumber) {
+    return DECK_SIBLINGS[deckNumber];
   }
 
   getChannel(deck = this.getActiveFocusedDeckIndex()) {
