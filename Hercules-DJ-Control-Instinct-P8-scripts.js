@@ -9,22 +9,6 @@
 
 // Tune the jog sensitivity when the scratch mode is disabled
 
-function log() {
-  var debugText = "[P8] ";
-  for (
-    var argumentIndex = 0;
-    argumentIndex < arguments.length;
-    argumentIndex++
-  ) {
-    debugText += arguments[argumentIndex] + " : ";
-  }
-  print(debugText);
-}
-
-function oppositeGroup(group) {
-  return group === "[Channel1]" ? "[Channel2]" : "[Channel1]";
-}
-
 var DJControlInstinctP8 = {
   // There is only one scratch toggle button for both decks.
   scratchModeActive: false,
@@ -41,41 +25,30 @@ var DJControlInstinctP8 = {
   },
   counters: {
     utilityJog: 0,
-    utilityScratchJog: 0,
   },
 
   CC: {
     SET_LED: 0x90,
   },
   LED: {
-    OFF: 0x00,
-    BLUE: 0x7d,
-    RED: 0x7e,
-    PURPLE: 0x7f,
-  }
+    OFF: 0x00, // making this 0x7c causes issues
+    BLUE: 0x7d, // ends with b01
+    RED: 0x7e, // ends with b10
+    PURPLE: 0x7f, // ends with b11
+  },
 };
 
-const deckChangeHandler = () => {
-  const activeFocusedDeckIndex = deckControl.getActiveFocusedDeckIndex();
+const renderer = new Renderer(DJControlInstinctP8.CC.SET_LED);
+const midiHelpers = new MidiHelpers(0x90);
 
-  // channel 1
-  midi.sendShortMsg(
-    DJControlInstinctP8.CC.SET_LED,
-    0x1c,
-    activeFocusedDeckIndex === 1 ? DJControlInstinctP8.LED.BLUE : DJControlInstinctP8.LED.OFF
-  );
-  // channel 2
-  midi.sendShortMsg(
-    DJControlInstinctP8.CC.SET_LED,
-    0x4b,
-    activeFocusedDeckIndex === 2 ? DJControlInstinctP8.LED.BLUE : DJControlInstinctP8.LED.OFF
-  );
-}
+const deckChangeHandler = () => {
+  refreshDeckOutputs();
+};
 
 const hotcueHandler = (number) => {
   const hotcueStatus = engine.getValue(
     deckControl.getChannel(),
-    `hotcue_${number}_status`
+    `hotcue_${number}_status`,
   );
 
   if (hotcueStatus === 0) {
@@ -88,24 +61,38 @@ const hotcueHandler = (number) => {
 DJControlInstinctP8.init = function () {
   engine.setValue("[Master]", "num_samplers", 8);
 
-  // Query the controller for knob and slider positions...
-  midi.sendShortMsg(0xb0, 0x7f, 0x7f);
-
-  // ...but the rate values get messed up, so reset them.
-  engine.setValue("[Channel1]", "rate_set_default", 1.0);
-  engine.setValue("[Channel2]", "rate_set_default", 1.0);
+  // Set up soft-takeover for all potential deck channels
+  for (var ch = 1; ch <= 4; ch++) {
+    engine.softTakeover("[Channel" + ch + "]", "volume", true);
+    for (var p = 1; p <= 3; p++) {
+      engine.softTakeover(
+        "[EqualizerRack1_[Channel" + ch + "]_Effect1]",
+        "parameter" + p,
+        true,
+      );
+    }
+  }
 
   deckControl.events.onDeckChange(deckChangeHandler);
   deckChangeHandler();
+
+  // todo: find some check that prevents this code from running on "not first startup" (this doesn't work!), alternatives could be if any track is loaded?
+  if (engine.getValue("[master]", "duckStrength") === 0) {
+    deckControl.setDeckActive(2);
+    deckControl.ejectDeck(2);
+    deckControl.setActiveFocusedDeckIndex(1);
+    deckControl.ejectDeck(1);
+  }
 
   print("Hercules Instinct P8 custom bindings initialized.");
 };
 
 DJControlInstinctP8.shutdown = function () {
   print("[P8] Shutdown...");
+  managedConnections.forEach((c) => c.disconnect());
   // turn off all lights
   for (var i = 0x01; i < 0x5c; i++) {
-    midi.sendShortMsg(0x90, i, 0x00);
+    renderer.set(i, 0x00);
   }
 };
 
@@ -116,36 +103,34 @@ engine.makeConnection(
     if (!on) {
       return;
     }
-    midi.sendShortMsg(0x90, 0x01, 0x7d);
-  })
+    renderer.set(0x01, 0x7d);
+  }),
 );
 
-DJControlInstinctP8.noop = function (midino, control, value, status, group) {
-  log(
-    "Noop",
-    "midino " + midino,
-    "control " + control,
-    "value " + value,
-    "status " + status,
-    "group " + group
-  );
-};
-
-// track shift (left/right) button
-npmUtil.connectMidi(0x90, [0x63, 0x2f], (channel, control, value) => {
-  if (value === 0) {
-    DJControlInstinctP8.shiftActive = null;
-  } else {
-    DJControlInstinctP8.shiftActive = control === 0x63 ? 1 : 2;
-  }
+midiHelpers.bind({
+  id: "shift",
+  description: "Track state of shift (left/right) button",
+  midiNotes: { left: 0x63, right: 0x2f },
+  onPress: {
+    down: ({ side }) => {
+      DJControlInstinctP8.shiftActive =
+        side === deckControl.LEFT
+          ? deckControl.getLeftDeckIndex()
+          : deckControl.getRightDeckIndex();
+    },
+    up: () => {
+      DJControlInstinctP8.shiftActive = null;
+    },
+  },
 });
 
-DJControlInstinctP8.scratchMode = npmUtil.shortAndLong({
-  id: "scratch",
-  push: (channel, control) => {
+midiHelpers.bind({
+  id: "scratch-button",
+  midiNotes: 0x2d,
+  onTap: () => {
     if (DJControlInstinctP8.utilityActive) {
       const utilityChannel = deckControl.getChannel(
-        DJControlInstinctP8.utilityActive
+        DJControlInstinctP8.utilityActive,
       );
       engine.setValue(utilityChannel, "beats_translate_half", 1);
       return;
@@ -153,8 +138,8 @@ DJControlInstinctP8.scratchMode = npmUtil.shortAndLong({
 
     script.toggleControl("[Skin]", "show_maximized_library");
   },
-  hold: {
-    both: (channel, control) => {
+  onPress: {
+    both: () => {
       if (DJControlInstinctP8.utilityActive) {
         // only defined for push
         return;
@@ -164,518 +149,579 @@ DJControlInstinctP8.scratchMode = npmUtil.shortAndLong({
         !DJControlInstinctP8.scratchModeActive;
 
       // update LED of 'scratch' button
-      midi.sendShortMsg(
-        0x90,
+      renderer.override(
         0x2d,
-        DJControlInstinctP8.scratchModeActive ? 0x7f : 0x00
+        DJControlInstinctP8.scratchModeActive
+          ? DJControlInstinctP8.LED.BLUE
+          : DJControlInstinctP8.LED.OFF,
       );
+
+      const activeGroup = deckControl.getChannel(
+        deckControl.getActiveFocusedDeckIndex(),
+      );
+
+      // LED feedback for available hotcues across all pads
+      npmUtil.range(1, 1, 8).forEach((hotcueNumber) => {
+        const midiBaseNote = hotcueNumber <= 4 ? 0x19 - 1 : 0x49 - 5;
+        if (DJControlInstinctP8.scratchModeActive) {
+          let hotcueColor = 0x00;
+          const hotcueType = engine.getValue(
+            activeGroup,
+            `hotcue_${hotcueNumber}_type`,
+          );
+          if (hotcueType === 1) {
+            hotcueColor = DJControlInstinctP8.LED.BLUE;
+          } else if (hotcueType === 4) {
+            hotcueColor = DJControlInstinctP8.LED.PURPLE;
+          }
+          renderer.override(midiBaseNote + hotcueNumber, hotcueColor);
+        } else {
+          renderer.release(midiBaseNote + hotcueNumber);
+        }
+      });
     },
   },
 });
 
-DJControlInstinctP8.shiftScratchMode = function (
-  channel,
-  control,
-  value,
-  status,
-  group
-) {
-  // unused!
-  // jog wheel is "pitch", since shift is pressed
-  midi.sendShortMsg(0x90, 0x2e, value ? 0x7f : 0x00);
-};
+midiHelpers.bind({
+  id: "shift+scratch-button",
+  midiNotes: 0x2e,
+  onChange: ({ value }) => {
+    // actually unused, dummy handler to light button up
+    renderer.set(0x2e, value ? 0x7f : 0x00);
+  },
+});
 
-DJControlInstinctP8.jogWheel = function (
-  midino,
-  control,
-  value,
-  status,
-  group
-) {
-  var deck = group === "[Channel1]" ? 1 : 2;
-  var direction = value === 1 ? 1 : -1;
+midiHelpers.bind({
+  id: "jog-wheel",
+  midiPrefixes: 0xb0,
+  midiNotes: { left: 0x30, right: 0x32 },
+  onChange: ({ side, value }) => {
+    const group = deckControl.getChannel(side);
+    const direction = value === 1 ? 1 : -1;
 
-  const currentPlayPosition = engine.getValue(group, "playposition");
-
-  log("jog", direction, DJControlInstinctP8.scratchModeActive);
-  if (DJControlInstinctP8.scratchModeActive) {
-    engine.setValue(
-      group,
-      direction > 0 ? "beatjump_4_forward" : "beatjump_4_backward",
-      1
-    );
-  } else if (DJControlInstinctP8.utilityActive) {
-    DJControlInstinctP8.counters.utilityJog += 1;
-    if (DJControlInstinctP8.counters.utilityJog >= 20) {
+    if (DJControlInstinctP8.scratchModeActive) {
       engine.setValue(
         group,
-        direction > 0 ? "beatjump_32_forward" : "beatjump_32_backward",
-        1
+        direction > 0 ? "beatjump_4_forward" : "beatjump_4_backward",
+        1,
       );
-      DJControlInstinctP8.counters.utilityJog = 0;
-    }
-  } else {
-    engine.setValue(group, "jog", 0.25 * direction);
-  }
-};
-
-// Pitch is adjusted by holding down shift and turning the jog wheel.
-DJControlInstinctP8.pitch = function (channel, control, value, status, group) {
-  const direction = value === 127 ? -1 : 1;
-  const currentPlayPosition = engine.getValue(group, "playposition");
-
-  if (DJControlInstinctP8.utilityActive) {
-    DJControlInstinctP8.counters.utilityScratchJog += 1;
-    if (DJControlInstinctP8.counters.utilityScratchJog >= 30) {
-      let lowerCue = null;
-      let cues = [];
-      for (let potentialCue = 1; potentialCue <= 8; potentialCue += 1) {
-        if (engine.getValue(group, `hotcue_${potentialCue}_status`) > 0) {
-          cues.push(potentialCue);
-
-          const cuePosition =
-            engine.getValue(group, `hotcue_${potentialCue}_position`) /
-            engine.getValue(group, "track_samples");
-          if (cuePosition < currentPlayPosition) {
-            lowerCue = potentialCue;
-          }
-        }
-      }
-
-      if (cues.length > 0) {
-        const lowerCueIndex = cues.indexOf(lowerCue);
-        if (lowerCueIndex === -1 && direction < 0) {
-          // nothing
-        } else {
-          let jumpToCueIndex = lowerCueIndex;
-          log(jumpToCueIndex, cues[jumpToCueIndex]);
-
-          if (direction > 0) {
-            if (jumpToCueIndex === -1) {
-              jumpToCueIndex = 0;
-            } else {
-              jumpToCueIndex += 1;
-            }
-
-            if (
-              Math.abs(
-                engine.getValue(
-                  group,
-                  `hotcue_${cues[jumpToCueIndex]}_position`
-                ) /
-                  engine.getValue(group, "track_samples") -
-                  currentPlayPosition
-              ) < 0.0001
-            ) {
-              jumpToCueIndex += 1;
-            }
-          }
-
-          log(jumpToCueIndex, cues[jumpToCueIndex]);
-
-          engine.setValue(group, `hotcue_${cues[jumpToCueIndex]}_goto`, 1);
-        }
-      }
-
-      DJControlInstinctP8.counters.utilityScratchJog = 0;
-    }
-  } else {
-    var delta = direction / 1000;
-    engine.setValue(group, "rate", engine.getValue(group, "rate") - delta); // 2023-04-30: switch to up = slow
-  }
-};
-
-// Pad (outer bottom) – LOADED STATUS & EJECTING
-DJControlInstinctP8.ejectAndSwitch = function (
-  channel,
-  control,
-  value,
-  status,
-  group
-) {
-  if (this.scratchModeActive) {
-    if (value > 0) {
-      hotcueHandler(group === "[Channel1]" ? 3 : 8);
-    }
-
-    return;
-  }
-
-  if (value === 0) {
-    return;
-  }
-
-  deckControl.ejectDeck(script.deckFromGroup(group));
-};
-
-const trackLoadedHandler = (value, group, control) => {
-  const deck = /** @type {DeckNumber} */ (script.deckFromGroup(group))
-  if (value) {
-    deckControl.setActiveFocusedDeckIndex(deck);
-  }
-  midi.sendShortMsg(0x90, deck === 1 ? 0x1b : 0x4c, value ? 0x7e : 0x00);
-}
-engine.makeConnection(
-  "[Channel1]",
-  "track_loaded",
-  trackLoadedHandler
-);
-engine.makeConnection(
-  "[Channel2]",
-  "track_loaded",
-  trackLoadedHandler
-);
-
-// KNOB (multi-use depending on activity)
-DJControlInstinctP8.multiKnob = function (
-  channel,
-  control,
-  value,
-  status,
-  group
-) {
-  if (DJControlInstinctP8.moveLoopActive) {
-    if (value > 64) {
-      engine.setValue(group, "loop_move", -1);
-    } else {
-      engine.setValue(group, "loop_move", 1);
-    }
-  } else if (DJControlInstinctP8.utilityActive) {
-    engine.setValue(
-      group,
-      "pregain",
-      engine.getValue(group, "pregain") + 0.01 * (value > 64 ? -1 : 1)
-    );
-  } else {
-    if (value > 64) {
-      script.toggleControl(group, "loop_halve");
-    } else {
-      script.toggleControl(group, "loop_double");
-    }
-  }
-};
-
-// LOOPS
-// push knob
-DJControlInstinctP8.loopKnob = function (
-  channel,
-  control,
-  value,
-  status,
-  group
-) {
-  if (value === 0) {
-    return;
-  }
-  if (engine.getValue(group, "loop_enabled")) {
-    engine.setValue(group, "reloop_toggle", 1);
-  } else {
-    engine.setValue(group, "beatloop_activate", 1);
-  }
-};
-// pad
-DJControlInstinctP8.loopPad = function (
-  channel,
-  control,
-  value,
-  status,
-  group
-) {
-  if (this.scratchModeActive) {
-    if (value > 0) {
-      hotcueHandler(group === "[Channel1]" ? 2 : 5);
-    }
-
-    return;
-  }
-
-  if (value === 0) {
-    DJControlInstinctP8.moveLoopActive = false;
-    if (new Date().getTime() - DJControlInstinctP8.timers.loopPressed < 500) {
-      engine.setValue(group, "reloop_toggle", 1);
-    }
-  } else {
-    DJControlInstinctP8.timers.loopPressed = new Date().getTime();
-    DJControlInstinctP8.moveLoopActive = true;
-  }
-  midi.sendShortMsg(
-    0x90,
-    group === "[Channel1]" ? 0x1a : 0x49,
-    DJControlInstinctP8.moveLoopActive ? 0x7e : 0x00
-  );
-};
-
-engine.makeConnection(
-  "[Channel1]",
-  "loop_enabled",
-  function (value, group, control) {
-    midi.sendShortMsg(0x90, 0x1a, value ? 0x7d : 0x00);
-  }
-);
-engine.makeConnection(
-  "[Channel2]",
-  "loop_enabled",
-  function (value, group, control) {
-    midi.sendShortMsg(0x90, 0x49, value ? 0x7d : 0x00);
-  }
-);
-
-// (LOOP) KNOB WITH SHIFT
-DJControlInstinctP8.multiKnobShift = (
-  channel,
-  control,
-  value,
-  status,
-  group
-) => {
-  const direction = value > 64 ? -1 : 1;
-  if (DJControlInstinctP8.utilityActive) {
-    const currentKey = engine.getValue(group, "key");
-    const newKey = ((currentKey + direction - 1) % 24) + 1; // between 1 [C] and 24 [Bm]
-    engine.setValue(group, "key", newKey);
-  } else {
-    const filterName = `[QuickEffectRack1_${group}]`;
-    const currentFilterValue = engine.getValue(filterName, "super1");
-    const newFilterValue = Math.max(
-      0,
-      Math.min(1, currentFilterValue + direction * 0.0075)
-    );
-    engine.setValue(filterName, "super1", newFilterValue);
-  }
-};
-
-// Pad (outer top) – KEYLOCK
-DJControlInstinctP8.keylock = function (
-  channel,
-  control,
-  value,
-  status,
-  group
-) {
-  if (this.scratchModeActive) {
-    if (value > 0) {
-      hotcueHandler(group === "[Channel1]" ? 1 : 6);
-    }
-
-    return;
-  }
-
-  if (value === 0) {
-    if (
-      new Date().getTime() - DJControlInstinctP8.timers.keylockPressed <
-      500
-    ) {
-      log(
-        "keylock",
-        engine.getValue(group, "keylock"),
-        "sync_key",
-        engine.getValue(group, "sync_key")
-      );
-      if (engine.getValue(group, "sync_key")) {
-        engine.setValue(group, "sync_key", 0);
-        engine.setValue(group, "reset_key", 1);
-      } else {
+    } else if (DJControlInstinctP8.utilityActive) {
+      DJControlInstinctP8.counters.utilityJog += 1;
+      if (DJControlInstinctP8.counters.utilityJog >= 20) {
         engine.setValue(
           group,
-          "keylock",
-          engine.getValue(group, "keylock") ? 0 : 1
+          direction > 0 ? "beatjump_32_forward" : "beatjump_32_backward",
+          1,
         );
+        DJControlInstinctP8.counters.utilityJog = 0;
       }
     } else {
-      engine.setValue(group, "keylock", 1);
-      engine.setValue(group, "sync_key", 1);
+      engine.setValue(group, "jog", 0.25 * direction);
     }
-  } else {
-    DJControlInstinctP8.timers.keylockPressed = new Date().getTime();
-  }
-};
-engine.makeConnection("[Channel1]", "keylock", function (value) {
-  midi.sendShortMsg(0x90, 0x19, value ? 0x7d : 0x00);
-});
-engine.makeConnection("[Channel1]", "sync_key", function (value) {
-  if (value) {
-    midi.sendShortMsg(0x90, 0x19, 0x7e);
-  }
-});
-engine.makeConnection("[Channel1]", "reset_key", function (value) {
-  // show keylock colors again
-  midi.sendShortMsg(
-    0x90,
-    0x19,
-    engine.getValue("[Channel1]", "keylock") ? 0x7d : 0x00
-  );
-});
-engine.makeConnection("[Channel2]", "keylock", function (value) {
-  midi.sendShortMsg(0x90, 0x4a, value ? 0x7d : 0x00);
-});
-engine.makeConnection("[Channel2]", "sync_key", function (value) {
-  if (value) {
-    midi.sendShortMsg(0x90, 0x4a, 0x7e);
-  }
-});
-engine.makeConnection("[Channel2]", "reset_key", function (value) {
-  // show keylock colors again
-  midi.sendShortMsg(
-    0x90,
-    0x4a,
-    engine.getValue("[Channel2]", "keylock") ? 0x7d : 0x00
-  );
+  },
 });
 
-// Pad (inner bottom) – UTILITY
-DJControlInstinctP8.utilityPad = function (
-  channel,
-  control,
-  value,
-  status,
-  group
-) {
-  // todo: stars_up, stars_down
+midiHelpers.bind({
+  id: "shift+jog-wheel",
+  description:
+    "Jog wheel movement with SHIFT held: usually adjusts pitch, when UTILITY is held, jumps between hotcues",
+  midiPrefixes: 0xb0,
+  midiNotes: { left: 0x31, right: 0x33 },
+  onChange: ({ value, side }) => {
+    const group = deckControl.getChannel(side);
+    const direction = value === 127 ? -1 : 1;
 
-  if (this.scratchModeActive) {
-    if (value > 0) {
-      hotcueHandler(group === "[Channel1]" ? 4 : 7);
-    }
+    var delta = direction / 1000;
+    engine.setValue(group, "rate", engine.getValue(group, "rate") - delta);
+  },
+});
 
-    return;
-  }
+// Pad (outer bottom) – LOADED STATUS & EJECTING
+midiHelpers.bind({
+  id: "eject-switch",
+  description: "Pad (outer bottom) for eject and deck switching",
+  midiNotes: { left: 0x1b, right: 0x4c },
+  onPress: {
+    down: ({ side }) => {
+      if (DJControlInstinctP8.scratchModeActive) {
+        hotcueHandler(side === deckControl.LEFT ? 3 : 8);
+        return;
+      }
+      const deckNumber =
+        side === deckControl.LEFT
+          ? deckControl.getLeftDeckIndex()
+          : deckControl.getRightDeckIndex();
+      deckControl.ejectDeck(deckNumber);
+    },
+  },
+});
 
-  if (value === 0) {
-    DJControlInstinctP8.utilityActive = null;
-  } else {
-    if (DJControlInstinctP8.utilityActive) {
-      engine.setValue(oppositeGroup(group), "beats_translate_curpos", 1);
+midiHelpers.bind({
+  id: "multi-knob",
+  description: "Loop knob, overlayed with many other uses depending on context",
+  midiPrefixes: 0xb0,
+  midiNotes: { left: 0x34, right: 0x36 },
+  onChange: ({ side, value }) => {
+    const group = deckControl.getChannel(side);
+    if (DJControlInstinctP8.moveLoopActive) {
+      if (value > 64) {
+        engine.setValue(group, "loop_move", -1);
+      } else {
+        engine.setValue(group, "loop_move", 1);
+      }
+    } else if (DJControlInstinctP8.utilityActive) {
+      engine.setValue(
+        group,
+        "pregain",
+        engine.getValue(group, "pregain") + 0.01 * (value > 64 ? -1 : 1),
+      );
     } else {
-      DJControlInstinctP8.utilityActive = group === "[Channel1]" ? 1 : 2;
+      if (value > 64) {
+        script.toggleControl(group, "loop_halve");
+      } else {
+        script.toggleControl(group, "loop_double");
+      }
+    }
+  },
+});
+
+midiHelpers.bind({
+  id: "loop-knob-push",
+  description: "Push knob for loop toggle",
+  midiNotes: { left: 0x57, right: 0x58 },
+  onPress: {
+    down: ({ side }) => {
+      const group = deckControl.getChannel(side);
+      if (engine.getValue(group, "loop_enabled")) {
+        engine.setValue(group, "reloop_toggle", 1);
+      } else {
+        engine.setValue(group, "beatloop_activate", 1);
+      }
+    },
+  },
+});
+
+midiHelpers.bind({
+  id: "loop-pad",
+  description: "Pad (inner top) for loop-related controls",
+  midiNotes: { left: 0x1a, right: 0x49 },
+  onTap: ({ value, side }) => {
+    engine.setValue(deckControl.getChannel(side), "reloop_toggle", 1);
+  },
+  onPress: {
+    both: ({ side, config, value, midiNote }) => {
+      DJControlInstinctP8.moveLoopActive = Boolean(value);
+
+      if (value) {
+        renderer.override(midiNote, DJControlInstinctP8.LED.PURPLE);
+      } else {
+        renderer.release(midiNote);
+      }
+    },
+  },
+});
+
+// (LOOP) KNOB WITH SHIFT
+midiHelpers.bind({
+  id: "shift+loop-knob",
+  midiPrefixes: 0xb0,
+  midiNotes: { left: 0x35, right: 0x37 },
+  onChange: ({ value, side }) => {
+    const group = deckControl.getChannel(side);
+    const direction = value > 64 ? -1 : 1;
+
+    if (DJControlInstinctP8.utilityActive) {
+      const currentKey = engine.getValue(group, "key");
+      const newKey = ((currentKey + direction - 1) % 24) + 1; // between 1 [C] and 24 [Bm]
+      engine.setValue(group, "key", newKey);
+    } else {
+      const filterName = `[QuickEffectRack1_${group}]`;
+      const currentFilterValue = engine.getValue(filterName, "super1");
+      const newFilterValue = Math.max(
+        0,
+        Math.min(1, currentFilterValue + direction * 0.0075),
+      );
+      engine.setValue(filterName, "super1", newFilterValue);
+    }
+  },
+});
+
+// Pad (outer top) – KEYLOCK
+midiHelpers.bind({
+  id: "keylock",
+  description: "Pad (outer top) for keylock and key sync",
+  midiNotes: { left: 0x19, right: 0x4a },
+  onTap: ({ side }) => {
+    if (DJControlInstinctP8.scratchModeActive) {
+      hotcueHandler(side === deckControl.LEFT ? 1 : 6);
+      return;
+    }
+
+    const group = deckControl.getChannel(side);
+    if (engine.getValue(group, "sync_key")) {
+      engine.setValue(group, "sync_key", 0);
+      engine.setValue(group, "reset_key", 1);
+    } else {
+      engine.setValue(
+        group,
+        "keylock",
+        engine.getValue(group, "keylock") ? 0 : 1,
+      );
+    }
+  },
+  onLongTap: ({ side }) => {
+    const group = deckControl.getChannel(side);
+    engine.setValue(group, "keylock", 1);
+    engine.setValue(group, "sync_key", 1);
+  },
+});
+
+// todo: stars_up, stars_down
+let utilityBlinkConnection = null;
+midiHelpers.bind({
+  id: "utility-pad",
+  description: "Pad (inner bottom) for utility controls",
+  midiNotes: { left: 0x1c, right: 0x4b },
+  onTap: ({ side }) => {
+    deckControl.setActiveFocusedDeckIndex(
+      side === deckControl.LEFT
+        ? deckControl.getLeftDeckIndex()
+        : deckControl.getRightDeckIndex(),
+    );
+  },
+  onPress: {
+    down: ({ side, midiNote }) => {
+      if (DJControlInstinctP8.scratchModeActive) {
+        hotcueHandler(side === deckControl.LEFT ? 4 : 7);
+        return;
+      }
+      if (DJControlInstinctP8.utilityActive) {
+        const oppositeSide =
+          side === deckControl.LEFT ? deckControl.RIGHT : deckControl.LEFT;
+        engine.setValue(
+          deckControl.getChannel(oppositeSide),
+          "beats_translate_curpos",
+          1,
+        );
+        return;
+      }
+
+      DJControlInstinctP8.utilityActive = side;
       DJControlInstinctP8.counters.utilityJog = 0;
       DJControlInstinctP8.counters.utilityScratchJog = 0;
-    }
+
+      utilityBlinkConnection = engine.makeConnection(
+        "[App]",
+        "indicator_250ms",
+        npmUtil.engineBlink(1, 1, (on) => {
+          renderer.override(
+            midiNote,
+            on ? DJControlInstinctP8.LED.BLUE : DJControlInstinctP8.LED.OFF,
+          );
+        }),
+      );
+    },
+    up: ({ midiNote }) => {
+      DJControlInstinctP8.utilityActive = null;
+      utilityBlinkConnection.disconnect();
+      renderer.release(midiNote);
+    },
+  },
+});
+
+const trackLoadedHandler = (value, group, control) => {
+  renderer.set(
+    deckControl.isGroupLeftDeck(group) ? 0x1b : 0x4c,
+    value ? DJControlInstinctP8.LED.RED : DJControlInstinctP8.LED.OFF,
+  );
+};
+
+const buildDeckColorForUtilityPad = (
+  sideIndex,
+  sideDefaultIndex,
+  activeFocusedIndex,
+) => {
+  let color = DJControlInstinctP8.LED.OFF;
+  if (sideIndex === activeFocusedIndex) {
+    color |= DJControlInstinctP8.LED.BLUE;
   }
-  midi.sendShortMsg(
-    0x90,
-    group === "[Channel1]" ? 0x1c : 0x4b,
-    DJControlInstinctP8.utilityActive
-      ? (deckControl.getActiveFocusedDeckIndex() === script.deckFromGroup(group) ? DJControlInstinctP8.LED.PURPLE : DJControlInstinctP8.LED.RED)
-      : (deckControl.getActiveFocusedDeckIndex() === script.deckFromGroup(group) ? DJControlInstinctP8.LED.BLUE : DJControlInstinctP8.LED.OFF)
-  );
+  if (sideIndex !== sideDefaultIndex) {
+    color |= DJControlInstinctP8.LED.RED;
+  }
+  return color;
 };
 
-// HEADPHONE GAIN
-// ...is managed by hardware!
-DJControlInstinctP8.headphoneGain = function (
-  channel,
-  control,
-  value,
-  status,
-  group
-) {
-  // if (value === 0) {
-  // return;
-  // }
-  // var currentValue = engine.getValue('[Master]', 'headGain')
-  // engine.setValue('[Master]', 'headGain', currentValue + 0.01 * (control === 0x5D ? -1 : 1));
+// MANAGED CONNECTIONS (reconnected on deck change)
+var managedConnections = [];
+
+const refreshDeckOutputs = () => {
+  managedConnections.forEach((c) => c.disconnect());
+  managedConnections = [];
+
+  const leftDeckIndex = deckControl.getLeftDeckIndex();
+  const leftGroup = deckControl.getChannel(leftDeckIndex);
+  const rightDeckIndex = deckControl.getRightDeckIndex();
+  const rightGroup = deckControl.getChannel(rightDeckIndex);
+  const activeFocusedDeckIndex = deckControl.getActiveFocusedDeckIndex();
+
+  // set colors of utility pad = which deck is active and focused
+
+  // left deck
+  renderer.set(
+    0x1c,
+    buildDeckColorForUtilityPad(leftDeckIndex, 1, activeFocusedDeckIndex),
+  );
+  // right deck
+  renderer.set(
+    0x4b,
+    buildDeckColorForUtilityPad(rightDeckIndex, 2, activeFocusedDeckIndex),
+  );
+
+  const connectManaged = (group, key, callback) => {
+    const connection = engine.makeConnection(group, key, callback);
+    managedConnections.push(connection);
+    connection.trigger();
+  };
+
+  // Play/Cue/Sync indicators, second row is for 'shift held' (to keep buttons lit)
+  connectManaged(leftGroup, "play_indicator", (value) => {
+    renderer.set(0x21, value ? 0x7d : 0x00);
+    renderer.set(0x24, value ? 0x7d : 0x00);
+  });
+  connectManaged(leftGroup, "cue_indicator", (value) => {
+    renderer.set(0x22, value ? 0x7d : 0x00);
+    renderer.set(0x25, value ? 0x7d : 0x00);
+  });
+  connectManaged(leftGroup, "sync_enabled", (value) => {
+    renderer.set(0x23, value ? 0x7d : 0x00);
+    renderer.set(0x26, value ? 0x7d : 0x00);
+  });
+  connectManaged(rightGroup, "play_indicator", (value) => {
+    renderer.set(0x51, value ? 0x7d : 0x00);
+    renderer.set(0x54, value ? 0x7d : 0x00);
+  });
+  connectManaged(rightGroup, "cue_indicator", (value) => {
+    renderer.set(0x52, value ? 0x7d : 0x00);
+    renderer.set(0x55, value ? 0x7d : 0x00);
+  });
+  connectManaged(rightGroup, "sync_enabled", (value) => {
+    renderer.set(0x53, value ? 0x7d : 0x00);
+    renderer.set(0x56, value ? 0x7d : 0x00);
+  });
+
+  // PFL
+  connectManaged(leftGroup, "pfl", (value) => {
+    renderer.set(0x5b, value ? 0x7d : 0x00);
+  });
+  connectManaged(rightGroup, "pfl", (value) => {
+    renderer.set(0x5c, value ? 0x7d : 0x00);
+  });
+
+  // Loop enabled (pad LED + shift+pad LEDs)
+  connectManaged(leftGroup, "loop_enabled", (value) => {
+    renderer.set(0x1a, value ? 0x7d : 0x00);
+    renderer.set(0x1d, value ? 0x7f : 0x00);
+    renderer.set(0x1e, value ? 0x7f : 0x00);
+  });
+  connectManaged(rightGroup, "loop_enabled", (value) => {
+    renderer.set(0x49, value ? 0x7d : 0x00);
+    renderer.set(0x4d, value ? 0x7f : 0x00);
+    renderer.set(0x4e, value ? 0x7f : 0x00);
+  });
+
+  // Track loaded
+  connectManaged(leftGroup, "track_loaded", trackLoadedHandler);
+  connectManaged(rightGroup, "track_loaded", trackLoadedHandler);
+
+  // Keylock / sync_key / reset_key
+  connectManaged(leftGroup, "keylock", (value) => {
+    renderer.set(0x19, value ? 0x7d : 0x00);
+  });
+  connectManaged(leftGroup, "sync_key", (value) => {
+    if (value) {
+      renderer.set(0x19, 0x7e);
+    }
+  });
+  connectManaged(leftGroup, "reset_key", () => {
+    renderer.set(0x19, engine.getValue(leftGroup, "keylock") ? 0x7d : 0x00);
+  });
+  connectManaged(rightGroup, "keylock", (value) => {
+    renderer.set(0x4a, value ? 0x7d : 0x00);
+  });
+  connectManaged(rightGroup, "sync_key", (value) => {
+    if (value) {
+      renderer.set(0x4a, 0x7e);
+    }
+  });
+  connectManaged(rightGroup, "reset_key", () => {
+    renderer.set(0x4a, engine.getValue(rightGroup, "keylock") ? 0x7d : 0x00);
+  });
+
+  // Soft-takeover: ignore next value for new active decks
+  engine.softTakeoverIgnoreNextValue(leftGroup, "volume");
+  engine.softTakeoverIgnoreNextValue(rightGroup, "volume");
+  for (let i = 1; i <= 3; i++) {
+    engine.softTakeoverIgnoreNextValue(
+      "[EqualizerRack1_" + leftGroup + "_Effect1]",
+      "parameter" + i,
+    );
+    engine.softTakeoverIgnoreNextValue(
+      "[EqualizerRack1_" + rightGroup + "_Effect1]",
+      "parameter" + i,
+    );
+  }
 };
 
-DJControlInstinctP8.crossfader = function (
-  channel,
-  control,
-  value,
-  status,
-  group
-) {
-  engine.setValue(
-    "[EffectRack1_EffectUnit" + deckControl.getActiveFocusedDeckIndex() + "]",
-    "mix",
-    value / 128
-  );
-  return;
+/** @type {[number, number, string, 'toggle'?][]} */
+([
+  [0x21, 0x51, "play", "toggle"],
+  [0x22, 0x52, "cue_cdj"],
+  [0x23, 0x53, "sync_enabled", "toggle"],
+  [0x24, 0x54, "play_stutter"],
+  [0x25, 0x55, "start_stop"],
+  [0x26, 0x56, "rate_set_default"],
+  [0x5b, 0x5c, "pfl", "toggle"],
+]).forEach(function ([left, right, key, behavior]) {
+  midiHelpers.bind({
+    id: key,
+    midiNotes: { left, right },
+    autoSetup: { key, behavior },
+  });
+});
 
-  const groupNumber = value >= 64 ? "2" : "1";
-  const oppositeGroupNumber = group == "1" ? "2" : "1";
-  const effectStrength = Math.abs(value - 64) / 64;
+midiHelpers.bind({
+  id: "volume-fader",
+  midiPrefixes: 0xb0,
+  midiNotes: { left: 0x40, right: 0x42 },
+  onChange: ({ side, value }) => {
+    engine.setParameter(deckControl.getChannel(side), "volume", value / 127);
+  },
+});
 
-  engine.setValue(
-    "[EffectRack1_EffectUnit" + groupNumber + "]",
-    "mix",
-    effectStrength
-  );
-  engine.setValue(
-    "[EffectRack1_EffectUnit" + oppositeGroupNumber + "]",
-    "mix",
-    0
-  );
-};
+/** @type {[number, number, string][]} */
+([
+  [0x44, 0x50, "parameter1"],
+  [0x46, 0x52, "parameter2"],
+  [0x48, 0x54, "parameter3"],
+]).forEach(([left, right, key]) => {
+  midiHelpers.bind({
+    id: `eq-${key}`,
+    midiPrefixes: 0xb0,
+    midiNotes: { left, right },
+    onChange: ({ side, value }) => {
+      engine.setParameter(
+        "[EqualizerRack1_" + deckControl.getChannel(side) + "_Effect1]",
+        key,
+        value / 127,
+      );
+    },
+  });
+});
+
+midiHelpers.bind({
+  id: "crossfader",
+  midiPrefixes: 0xb0,
+  midiNotes: 0x56,
+  onChange: ({ value }) => {
+    let focusedDeckIndex = deckControl.getActiveFocusedDeckIndex();
+    if (focusedDeckIndex > 2) {
+      focusedDeckIndex = deckControl.getSiblingDeckNumber(focusedDeckIndex);
+    }
+    engine.setValue(
+      "[EffectRack1_EffectUnit" + focusedDeckIndex + "]",
+      "mix",
+      value / 128,
+    );
+  },
+});
 
 const WIDGET_ID = {
   TREE_NAV: 2,
   LIST: 3,
-}
-DJControlInstinctP8.pushBrowserButton = (channel, control, value) => {
-  if (value === 0) {
-    return;
-  }
-
-  const isShiftPressed = control === 44;
-  const currentlyFocusedWidget = engine.getValue("[Library]", "focused_widget");
-
-
-  if (isShiftPressed) {
-    if (currentlyFocusedWidget === WIDGET_ID.LIST) {
-      // todo: load to preview?
-    } else {
-      // unused for now
-    }
-  } else {
-    if (currentlyFocusedWidget === WIDGET_ID.LIST) {
-      engine.setValue(
-        "[Library]",
-        "focused_widget",
-        WIDGET_ID.TREE_NAV
-      );
-    } else {
-      engine.setValue("[Library]", "GoToItem", 1);
-    }
-  }
 };
 
-// Load A/B buttons
-npmUtil.connectMidi(0x90, [0x5f, 0x60], (channel, control, value) => {
-  if (value === 0) {
-    return;
-  }
-  const deckNumber = control === 0x5f ? deckControl.getLeftDeckIndex() : deckControl.getRightDeckIndex()
-  if (DJControlInstinctP8.shiftActive) {
-    deckControl.setDeckActive(deckControl.getSiblingDeckNumber(deckNumber))
-    return;
-  }
-  engine.setValue(
-    deckControl.getChannel(deckNumber),
-    "LoadSelectedTrack",
-    1
-  );
+midiHelpers.bind({
+  id: "browser-knob-push",
+  midiNotes: [0x2b, 0x2c], // without and with shift held
+  onPress: {
+    down: ({ midiNote }) => {
+      const isShiftPressed = midiNote === 0x2c;
+      const currentlyFocusedWidget = engine.getValue(
+        "[Library]",
+        "focused_widget",
+      );
+
+      if (isShiftPressed) {
+        if (currentlyFocusedWidget === WIDGET_ID.LIST) {
+          // todo: load to preview?
+        } else {
+          // unused for now
+        }
+      } else {
+        if (currentlyFocusedWidget === WIDGET_ID.LIST) {
+          engine.setValue("[Library]", "focused_widget", WIDGET_ID.TREE_NAV);
+        } else {
+          engine.setValue("[Library]", "GoToItem", 1);
+        }
+      }
+    },
+  },
 });
 
-DJControlInstinctP8.browserKnob = (channel, control, value) => {
-  if (DJControlInstinctP8.utilityActive) {
-    npmUtil.updateValue("[Master]", "gain", (value < 64 ? 1 : -1) * 0.01);
-  } else {
-    if (engine.getValue("[Library]", "focused_widget") === 0) {
+midiHelpers.bind({
+  id: "load-ab",
+  description: "Load A/B buttons",
+  midiNotes: { left: 0x5f, right: 0x60 },
+  onPress: {
+    down: ({ side }) => {
+      const deckNumber =
+        side === deckControl.LEFT
+          ? deckControl.getLeftDeckIndex()
+          : deckControl.getRightDeckIndex();
+      if (DJControlInstinctP8.shiftActive) {
+        deckControl.setDeckActive(deckControl.getSiblingDeckNumber(deckNumber));
+        return;
+      }
+      engine.setValue(deckControl.getChannel(side), "LoadSelectedTrack", 1);
+    },
+  },
+});
+
+midiHelpers.bind({
+  id: "browser-knob",
+  description: "Browser knob (rotation)",
+  midiPrefixes: 0xb0,
+  midiNotes: 0x38,
+  onChange: ({ value }) => {
+    if (DJControlInstinctP8.utilityActive) {
+      npmUtil.updateValue("[Master]", "gain", (value < 64 ? 1 : -1) * 0.01);
+    } else {
+      if (engine.getValue("[Library]", "focused_widget") === 0) {
+        engine.setValue(
+          "[Playlist]",
+          value < 64 ? "SelectNextTrack" : "SelectPrevTrack",
+          1,
+        );
+      } else {
+        engine.setValue("[Library]", "MoveVertical", value < 64 ? 1 : -1);
+      }
+    }
+  },
+});
+
+midiHelpers.bind({
+  id: "shift+browser-knob",
+  description: "Shift + browser knob (rotation) for fast browsing",
+  midiPrefixes: 0xb0,
+  midiNotes: 0x39,
+  onChange: ({ value }) => {
+    for (let scrollCount = 0; scrollCount < 20; scrollCount++) {
       engine.setValue(
         "[Playlist]",
         value < 64 ? "SelectNextTrack" : "SelectPrevTrack",
-        1
+        1,
       );
-    } else {
-      engine.setValue("[Library]", "MoveVertical", value < 64 ? 1 : -1);
     }
-  }
-};
-DJControlInstinctP8.browserKnobShift = (channel, control, value) => {
-  for (let scrollCount = 0; scrollCount < 20; scrollCount++) {
-    engine.setValue(
-      "[Playlist]",
-      value < 64 ? "SelectNextTrack" : "SelectPrevTrack",
-      1
-    );
-  }
-};
+  },
+});

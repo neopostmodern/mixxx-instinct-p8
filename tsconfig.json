@@ -1,22 +1,22 @@
 {
-    "compilerOptions": {
-        "noImplicitAny": false,
-        "lib": ["ES6"],
-        "allowJs": true,
-        "checkJs": true,
-        "noEmit": true
-    },
-    "include": [
-        "*.js", 
-        "lib/*.ts", 
-        "globals.d.ts",
-        "/usr/share/mixxx/controllers/common-controller-scripts.js",
-        "/usr/share/mixxx/controllers/common-hid-packet-parser.js",
-        "/usr/share/mixxx/controllers/midi-components-0.0.js",
-        "/usr/share/mixxx/controllers/engine-api.d.ts",
-        "/usr/share/mixxx/controllers/color-mapper-api.d.ts",
-        "/usr/share/mixxx/controllers/midi-controller-api.d.ts", 
-        "/usr/share/mixxx/controllers/console-api.d.ts",
-        "/usr/share/mixxx/controllers/hid-controller-api.d.ts"
-    ]
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "lib": ["ES6"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true
+  },
+  "include": [
+    "*.js",
+    "lib/*.ts",
+    "globals.d.ts",
+    "/usr/share/mixxx/controllers/common-controller-scripts.js",
+    "/usr/share/mixxx/controllers/common-hid-packet-parser.js",
+    "/usr/share/mixxx/controllers/midi-components-0.0.js",
+    "/usr/share/mixxx/controllers/engine-api.d.ts",
+    "/usr/share/mixxx/controllers/color-mapper-api.d.ts",
+    // "/usr/share/mixxx/controllers/midi-controller-api.d.ts",
+    "/usr/share/mixxx/controllers/console-api.d.ts",
+    "/usr/share/mixxx/controllers/hid-controller-api.d.ts"
+  ]
 }

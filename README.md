@@ -43,8 +43,6 @@ Hold + press *any pad*: set or trigger hotcue; on the left pads are the first fo
 1 2 | 5 6
 3 4 | 7 8
 ```
-(TODO: LED feedback when scratch is held, show already set hotcues)
-
 Also see _Utilities_ and _Jog wheel_
 
 ### Jog wheel
@@ -84,6 +82,10 @@ Shift + turn: fast browse
 Regular press: switch pane or open (context dependent)
 Shift + press: unused
 Hold `utility` + turn: master volume
+
+### Headphone gain
+
+Is entirely managed by hardware
 
 ## Behring CMD DV-1
 
@@ -133,3 +135,13 @@ On the deck you hold:
 
 Short: Set or jump to hot cue
 Hold _Erase_ + short: Delete hot cue
+
+## Technical info
+
+### Mixxx jargon and extensions to it
+
+- `group`
+  - a string representing the group of controls something belongs to
+  - often the deck, e.g. deck 1 represented as `[Channel1]`
+  - but also other groups, e.g. `[EqualizerRack1_[Channel2]_Effect1]`
+

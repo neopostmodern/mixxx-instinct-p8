@@ -30,6 +30,9 @@ const DECK_SIBLINGS = {
 
 class DeckControl {
   constructor() {
+    this.LEFT = "LEFT";
+    this.RIGHT = "RIGHT";
+
     this.decks = [
       null,
       DECK_ACTIVE_FOCUS,
@@ -44,7 +47,6 @@ class DeckControl {
 
     engine
       .makeConnection("[Master]", "duckStrength", (value) => {
-        print("duck " + value);
         this.decks = this.decodeDecksFromDuck(value);
 
         this.callbacks.onDeckChange.forEach((callback) => callback());
@@ -56,11 +58,24 @@ class DeckControl {
     return /** @type {DeckNumber} */ (this.decks.indexOf(DECK_ACTIVE_FOCUS));
   }
 
+  /**
+   * Check if the group string represents a deck on the physically left side
+   * @param group {string} Mixxx group string
+   * @returns {boolean} If the deck is physically on the left
+   */
+  isGroupLeftDeck(group) {
+    const deck = script.deckFromGroup(group);
+    return deck === 1 || deck === 3;
+  }
   getLeftDeckIndex() {
-    return this.decks[1] === DECK_ACTIVE || this.decks[1] === DECK_ACTIVE_FOCUS ? 1 : 3;
+    return this.decks[1] === DECK_ACTIVE || this.decks[1] === DECK_ACTIVE_FOCUS
+      ? 1
+      : 3;
   }
   getRightDeckIndex() {
-    return this.decks[2] === DECK_ACTIVE || this.decks[2] === DECK_ACTIVE_FOCUS ? 2 : 4;
+    return this.decks[2] === DECK_ACTIVE || this.decks[2] === DECK_ACTIVE_FOCUS
+      ? 2
+      : 4;
   }
 
   /**
@@ -79,7 +94,7 @@ class DeckControl {
     engine.setValue(
       "[Master]",
       "duckStrength",
-      deckControl.encodeDuckFromDecks()
+      deckControl.encodeDuckFromDecks(),
     );
   }
 
@@ -88,7 +103,6 @@ class DeckControl {
    * @param {DeckNumber} deckNumber
    */
   setDeckActive(deckNumber) {
-    log("activate", deckNumber)
     const siblingIndex = DECK_SIBLINGS[deckNumber];
     this.decks[siblingIndex] = DECK_ADDITIONAL;
     this.decks[deckNumber] = DECK_ACTIVE; // maybe should inherit focus status from sibling?
@@ -96,7 +110,7 @@ class DeckControl {
     engine.setValue(
       "[Master]",
       "duckStrength",
-      deckControl.encodeDuckFromDecks()
+      deckControl.encodeDuckFromDecks(),
     );
   }
 
@@ -104,8 +118,19 @@ class DeckControl {
     return DECK_SIBLINGS[deckNumber];
   }
 
+  /**
+   * Get the Mixxx 'channel' representation for a given deck
+   * @param {number | typeof deckControl.LEFT | typeof deckControl.RIGHT} [deck]
+   * @returns {string}
+   */
   getChannel(deck = this.getActiveFocusedDeckIndex()) {
-    return `[Channel${deck}]`;
+    let resolvedDeck = deck;
+    if (deck === deckControl.LEFT) {
+      resolvedDeck = this.getLeftDeckIndex();
+    } else if (deck === deckControl.RIGHT) {
+      resolvedDeck = this.getRightDeckIndex();
+    }
+    return `[Channel${resolvedDeck}]`;
   }
 
   encodeDuckFromDecks() {
@@ -140,20 +165,20 @@ class DeckControl {
         group.replace("[Channel", "").replace("]", "") +
         "]",
       "mix",
-      0
+      0,
     );
     for (var i = 1; i <= 3; i++) {
       engine.setValue(
         "[EqualizerRack1_" + group + "_Effect1]",
         "parameter" + i,
-        1
+        1,
       );
     }
     for (var deckIndex = 1; deckIndex <= 4; deckIndex++) {
       engine.setValue(
         deckControl.getChannel(/** @type {DeckNumber} */ (deckIndex)),
         "pfl",
-        deckIndex === deckNumber ? 1 : 0
+        deckIndex === deckNumber ? 1 : 0,
       );
     }
   }
@@ -184,7 +209,7 @@ class DeckControl {
           break;
         default:
           throw Error(
-            `Illegal deck: control ${control} interpreted as physical ${physicalNumber}`
+            `Illegal deck: control ${control} interpreted as physical ${physicalNumber}`,
           );
       }
       return { number, physicalNumber };
@@ -217,7 +242,6 @@ class DeckControl {
     this.callbacks[name] = [];
 
     return (callback) => {
-      print("sub " + name + " > " + callback);
       this.callbacks[name].push(callback);
     };
   }
